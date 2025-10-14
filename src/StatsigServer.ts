@@ -69,5 +69,22 @@ export class StatsigServer extends StatsigCore {
     user: StatsigUser,
     graderName: string,
     evalResult: AIEvalResult,
-  ): void {}
+  ): void {
+    const { version, score, session_id } = evalResult;
+    if (score < 0 || score > 1) {
+      console.error(
+        `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
+      );
+      return;
+    }
+
+    this.logEvent(user, 'statsig::eval_result', version.getAIConfigName(), {
+      score: score.toString(),
+      session_id: session_id,
+      version_name: version.getName() ?? '',
+      version_id: version.getID() ?? '',
+      grader_name: graderName ?? '',
+      ai_config_name: version.getAIConfigName() ?? '',
+    });
+  }
 }
