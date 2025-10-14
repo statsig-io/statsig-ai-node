@@ -1,3 +1,4 @@
+import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import {
   Layer,
   Statsig as StatsigCore,
@@ -7,7 +8,6 @@ import {
 import { Prompt, makePrompt } from './prompts/Prompt';
 
 import { AIEvalResult } from './AIEvalResult';
-import { AgentConfig } from './AgentConfig';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigOptions } from './StatsigOptions';
@@ -43,26 +43,36 @@ export class StatsigServer extends StatsigCore {
     promptName: string,
     _options: PromptEvaluationOptions,
   ): Prompt {
-    const parameterStore = this.getParameterStore(user, `prompt:${promptName}`);
-
-    const targettedParamStoreName =
-      (parameterStore.getValue('prompt_targeting_rules') as string) ?? '';
-
-    const targettedParameterStore = this.getParameterStore(
+    const promptParameterStore = this.getParameterStore(
       user,
-      targettedParamStoreName,
+      `prompt:${promptName}`,
+    );
+
+    const targetingRulesParamStoreName = promptParameterStore.getValue(
+      'prompt_targeting_rules',
+      '',
+    );
+
+    const targetingRulesParameterStore = this.getParameterStore(
+      user,
+      targetingRulesParamStoreName,
     );
 
     return makePrompt(
       this,
-      targettedParamStoreName,
-      targettedParameterStore,
+      targetingRulesParamStoreName,
+      targetingRulesParameterStore,
       user,
     );
   }
 
   getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
-    return new AgentConfig(agentConfigName, 'no-op');
+    const agentParameterStore = this.getParameterStore(
+      user,
+      `agent:${agentConfigName}`,
+    );
+
+    return makeAgentConfig(this, user, agentConfigName, agentParameterStore);
   }
 
   logEvalResult(
