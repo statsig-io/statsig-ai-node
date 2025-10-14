@@ -44,7 +44,7 @@ export class Prompt {
     return this.name;
   }
 
-  getLiveConfig(): PromptVersion {
+  getLive(): PromptVersion {
     return this._liveConfig;
   }
 
