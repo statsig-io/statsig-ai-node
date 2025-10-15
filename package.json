@@ -20,7 +20,6 @@
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",
     "@opentelemetry/semantic-conventions": "^1.36.0",
-    "openai": "^6.0.1",
     "@statsig/statsig-node-core": "0.9.1"
   },
   "devDependencies": {
