@@ -1,3 +1,4 @@
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
@@ -12,8 +13,6 @@ export const createExporterOptions = (endpoint: string, sdkKey: string) => ({
 });
 
 export class Otel {
-  private static readonly ATTR_SERVICE_NAME = 'service.name';
-
   private sdkKey: string;
   private serviceName: string;
   private enableAutoInstrumentation: boolean;
@@ -32,17 +31,13 @@ export class Otel {
   }
 
   setup(): NodeSDK {
-    console.log(
-      'setting up otel',
-      createExporterOptions('/v1/traces', this.sdkKey),
-    );
     const traceExporter = new OTLPTraceExporter(
       createExporterOptions('/v1/traces', this.sdkKey),
     );
 
     const sdk = new NodeSDK({
       resource: resourceFromAttributes({
-        [Otel.ATTR_SERVICE_NAME]: this.serviceName,
+        [ATTR_SERVICE_NAME]: this.serviceName,
       }),
       instrumentations: this.enableAutoInstrumentation
         ? [getNodeAutoInstrumentations()]
@@ -65,19 +60,8 @@ export class Otel {
   }
 
   async forceFlush() {
-    console.log('[Otel] Starting forceFlush...');
-    const tracerProvider = trace.getTracerProvider() as any;
-    if (tracerProvider?.forceFlush) {
-      console.log('[Otel] Flushing tracer provider...');
-      await tracerProvider.forceFlush();
-      console.log('[Otel] Tracer provider flushed');
+    if ((this.sdk as any)?._tracerProvider?.forceFlush) {
+      await (this.sdk as any)._tracerProvider.forceFlush();
     }
-    // Also explicitly flush the exporter to ensure HTTP requests complete
-    if (this.traceExporter?.forceFlush) {
-      console.log('[Otel] Flushing trace exporter...');
-      await this.traceExporter.forceFlush();
-      console.log('[Otel] Trace exporter flushed');
-    }
-    console.log('[Otel] forceFlush complete');
   }
 }

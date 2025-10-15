@@ -36,15 +36,26 @@ export class MockScrapi {
     this.port = Math.floor(Math.random() * 2000) + 4000;
     this.server = this.app.listen(this.port, onReady);
 
-    this.app.use(
-      (
-        req: express.Request,
-        _res: express.Response,
-        next: express.NextFunction,
-      ) => {
-        console.log(`[Scrapi] Req ${req.method}:`, req.url, Date.now());
+    // Handle zstd decompression first
+    this.app.use(async (req: express.Request, res: express.Response, next) => {
+      if (req.headers['content-encoding'] === 'zstd') {
+        await decompressZstd(req);
+      }
+      next();
+    });
+
+    // Use express.json() for non-zstd requests (mainly otel requests)
+    this.app.use((req: express.Request, res: express.Response, next) => {
+      if (req.headers['content-encoding'] === 'zstd') {
+        // Skip express.json for zstd, body is already parsed by decompressZstd
         next();
-      },
+      } else {
+        express.json()(req, res, next);
+      }
+    });
+
+    // Compression middleware
+    this.app.use(
       compression({
         filter: (req, res) => {
           if (req.headers['content-encoding'] === 'zstd') {
@@ -53,39 +64,38 @@ export class MockScrapi {
           return compression.filter(req, res);
         },
       }),
-      async (req: express.Request, res: express.Response) => {
-        if (req.headers['content-encoding'] === 'zstd') {
-          await decompressZstd(req);
-        }
-
-        const recorded = {
-          path: req.path,
-          method: req.method,
-          body: req.body,
-        };
-
-        this.requests.push(recorded);
-        this.waiters.forEach((waiter) => waiter(recorded));
-
-        const found = Object.entries(this.mocks).find(([path, mock]) => {
-          if (mock.options?.method !== req.method) {
-            return false;
-          }
-
-          return req.path.startsWith(path);
-        });
-
-        if (!found) {
-          console.log('Unmatched request:', req.method, req.url);
-          res.status(404).send('Not Found');
-          return;
-        }
-
-        const [_, mock] = found;
-        res.status(mock.options?.status ?? 200).send(mock.response);
-      },
-      express.json(),
     );
+
+    // Main route handler
+    this.app.use(async (req: express.Request, res: express.Response) => {
+      const recorded = {
+        path: req.path,
+        method: req.method,
+        body: req.body,
+      };
+
+      console.log(`[Scrapi] Req ${req.method}:`, req.url, Date.now());
+
+      this.requests.push(recorded);
+      this.waiters.forEach((waiter) => waiter(recorded));
+
+      const found = Object.entries(this.mocks).find(([path, mock]) => {
+        if (mock.options?.method !== req.method) {
+          return false;
+        }
+
+        return req.path.startsWith(path);
+      });
+
+      if (!found) {
+        console.log('Unmatched request:', req.method, req.url);
+        res.status(404).send('Not Found');
+        return;
+      }
+
+      const [_, mock] = found;
+      res.status(mock.options?.status ?? 200).send(mock.response);
+    });
   }
 
   static async create(): Promise<MockScrapi> {

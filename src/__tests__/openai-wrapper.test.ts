@@ -90,307 +90,125 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const traceRequests = scrapi.getOtelRequests();
-    console.log(traceRequests);
     expect(traceRequests.length).toBeGreaterThan(0);
 
     const traceRequest = traceRequests[0];
-    expect(traceRequest.body.headers['statsig-api-key']).toBe(
-      'secret-test-key',
-    );
     expect(traceRequest.body).toBeDefined();
 
     const resourceSpans = traceRequest.body?.resourceSpans || [];
     expect(resourceSpans.length).toBeGreaterThan(0);
+
+    const resourceSpan = resourceSpans[0];
+
+    // Validate Resource structure
+    expect(resourceSpan.resource).toBeDefined();
+    expect(resourceSpan.resource.attributes).toBeDefined();
+    expect(Array.isArray(resourceSpan.resource.attributes)).toBe(true);
+    
+    // Check for required resource attributes
+    const resourceAttrs = resourceSpan.resource.attributes;
+    const resourceAttrKeys = resourceAttrs.map((attr: any) => attr.key);
+    
+    // These are standard OpenTelemetry resource attributes
+    const expectedResourceAttrs = [
+      'service.name',
+      'process.runtime.name',
+      'process.runtime.version',
+    ];
+    
+    expectedResourceAttrs.forEach((attrName) => {
+      expect(resourceAttrKeys).toContain(attrName);
+    });
+
+    // Validate ScopeSpans structure
+    expect(resourceSpan.scopeSpans).toBeDefined();
+    expect(Array.isArray(resourceSpan.scopeSpans)).toBe(true);
+    expect(resourceSpan.scopeSpans.length).toBeGreaterThan(0);
+
+    const scopeSpan = resourceSpan.scopeSpans[0];
+    expect(scopeSpan.scope).toBeDefined();
+    expect(scopeSpan.scope.name).toBe('statsig-openai-proxy');
+    
+    // Validate Spans array
+    expect(scopeSpan.spans).toBeDefined();
+    expect(Array.isArray(scopeSpan.spans)).toBe(true);
+    expect(scopeSpan.spans.length).toBeGreaterThan(0);
+
+    const span = scopeSpan.spans[0];
+    
+    // Validate span metadata
+    expect(span.traceId).toBeDefined();
+    expect(span.spanId).toBeDefined();
+    expect(span.name).toBe('openai.chat.completions.create');
+    expect(span.kind).toBe(3); // SPAN_KIND_CLIENT
+    expect(span.startTimeUnixNano).toBeDefined();
+    expect(span.endTimeUnixNano).toBeDefined();
+    expect(span.status).toBeDefined();
+    expect(span.status.code).toBe(1); // STATUS_CODE_OK
+
+    // Validate span attributes
+    expect(span.attributes).toBeDefined();
+    expect(Array.isArray(span.attributes)).toBe(true);
+    
+    const spanAttrs = span.attributes;
+    const spanAttrMap = spanAttrs.reduce((acc: any, attr: any) => {
+      acc[attr.key] = attr.value;
+      return acc;
+    }, {});
+
+    // Required request attributes
+    expect(spanAttrMap['gen_ai.system']).toBeDefined();
+    expect(spanAttrMap['gen_ai.system'].stringValue).toBe('openai');
+    
+    expect(spanAttrMap['gen_ai.operation.name']).toBeDefined();
+    expect(spanAttrMap['gen_ai.operation.name'].stringValue).toBe('chat.completions.create');
+    
+    expect(spanAttrMap['gen_ai.request.model']).toBeDefined();
+    expect(spanAttrMap['gen_ai.request.model'].stringValue).toBe('gpt-4');
+    
+    expect(spanAttrMap['gen_ai.request.temperature']).toBeDefined();
+    expect(spanAttrMap['gen_ai.request.temperature'].doubleValue).toBe(0.7);
+    
+    expect(spanAttrMap['gen_ai.request.max_tokens']).toBeDefined();
+    expect(spanAttrMap['gen_ai.request.max_tokens'].intValue).toBe(100);
+    
+    expect(spanAttrMap['gen_ai.request.stream']).toBeDefined();
+    expect(spanAttrMap['gen_ai.request.stream'].boolValue).toBe(false);
+    
+    expect(spanAttrMap['gen_ai.input.messages_json']).toBeDefined();
+    expect(spanAttrMap['gen_ai.input.messages_json'].stringValue).toBeDefined();
+    
+    // Required response attributes
+    expect(spanAttrMap['gen_ai.response.id']).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.id'].stringValue).toBeDefined();
+    
+    expect(spanAttrMap['gen_ai.response.model']).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.model'].stringValue).toBe('gpt-4');
+    
+    expect(spanAttrMap['gen_ai.response.created']).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.created'].intValue).toBeDefined();
+    
+    expect(spanAttrMap['gen_ai.completion.choices_count']).toBeDefined();
+    expect(spanAttrMap['gen_ai.completion.choices_count'].intValue).toBe(1);
+    
+    expect(spanAttrMap['gen_ai.response.finish_reason']).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.finish_reason'].stringValue).toBeDefined();
+    
+    expect(spanAttrMap['gen_ai.completion']).toBeDefined();
+    expect(spanAttrMap['gen_ai.completion'].stringValue).toBeDefined();
+    
+    // Required usage attributes
+    expect(spanAttrMap['gen_ai.usage.prompt_tokens']).toBeDefined();
+    expect(spanAttrMap['gen_ai.usage.prompt_tokens'].intValue).toBeGreaterThan(0);
+    
+    expect(spanAttrMap['gen_ai.usage.completion_tokens']).toBeDefined();
+    expect(spanAttrMap['gen_ai.usage.completion_tokens'].intValue).toBeGreaterThan(0);
+    
+    expect(spanAttrMap['gen_ai.usage.total_tokens']).toBeDefined();
+    expect(spanAttrMap['gen_ai.usage.total_tokens'].intValue).toBeGreaterThan(0);
+    
+    // Required metrics attributes
+    expect(spanAttrMap['gen_ai.metrics.time_to_first_token_ms']).toBeDefined();
+    expect(spanAttrMap['gen_ai.metrics.time_to_first_token_ms'].intValue).toBeGreaterThanOrEqual(0);
   });
-
-  //   test('should include custom attributes in traces', async () => {
-  //     // Wrap with custom attributes
-  //     const customWrappedOpenAI = wrapOpenAI(openai, {
-  //       customAttributes: {
-  //         'custom.attribute.1': 'value1',
-  //         'custom.attribute.2': 'value2',
-  //       },
-  //     });
-
-  //     await statsig.initialize();
-
-  //     await customWrappedOpenAI.chat.completions.create({
-  //       model: 'gpt-4',
-  //       messages: [{ role: 'user', content: 'Test' }],
-  //     });
-
-  //     // Wait for traces
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should send traces for embeddings.create', async () => {
-  //     await statsig.initialize();
-
-  //     const response = await wrappedOpenAI.embeddings.create({
-  //       model: 'text-embedding-ada-002',
-  //       input: 'Test input',
-  //     });
-
-  //     expect(response).toBeDefined();
-  //     expect(response.data).toBeDefined();
-  //     expect(response.data[0].embedding).toBeDefined();
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should send traces for completions.create (legacy)', async () => {
-  //     await statsig.initialize();
-
-  //     const response = await wrappedOpenAI.completions!.create({
-  //       model: 'gpt-3.5-turbo-instruct',
-  //       prompt: 'Tell me a joke',
-  //       max_tokens: 50,
-  //     });
-
-  //     expect(response).toBeDefined();
-  //     expect(response.choices[0].text).toBe('This is a completion');
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should send traces for images.generate', async () => {
-  //     await statsig.initialize();
-
-  //     const response = await wrappedOpenAI.images!.generate({
-  //       model: 'dall-e-3',
-  //       prompt: 'A beautiful sunset',
-  //       n: 1,
-  //     });
-
-  //     expect(response).toBeDefined();
-  //     expect(response.data).toBeDefined();
-  //     expect(response.data[0].url).toBeDefined();
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should handle streaming chat completions', async () => {
-  //     // Create a mock streaming response
-  //     const mockStream = {
-  //       async *[Symbol.asyncIterator]() {
-  //         yield {
-  //           id: 'chatcmpl-stream',
-  //           object: 'chat.completion.chunk',
-  //           created: Date.now(),
-  //           model: 'gpt-4',
-  //           choices: [
-  //             {
-  //               index: 0,
-  //               delta: { role: 'assistant', content: 'Hello' },
-  //               finish_reason: null,
-  //             },
-  //           ],
-  //         };
-  //         yield {
-  //           id: 'chatcmpl-stream',
-  //           object: 'chat.completion.chunk',
-  //           created: Date.now(),
-  //           model: 'gpt-4',
-  //           choices: [
-  //             {
-  //               index: 0,
-  //               delta: { content: ' there!' },
-  //               finish_reason: null,
-  //             },
-  //           ],
-  //         };
-  //         yield {
-  //           id: 'chatcmpl-stream',
-  //           object: 'chat.completion.chunk',
-  //           created: Date.now(),
-  //           model: 'gpt-4',
-  //           choices: [
-  //             {
-  //               index: 0,
-  //               delta: {},
-  //               finish_reason: 'stop',
-  //             },
-  //           ],
-  //           usage: {
-  //             prompt_tokens: 5,
-  //             completion_tokens: 10,
-  //             total_tokens: 15,
-  //           },
-  //         };
-  //       },
-  //     };
-
-  //     (mockOpenAI.chat.completions.create as jest.Mock).mockReturnValue(
-  //       mockStream,
-  //     );
-
-  //     await statsig.initialize();
-
-  //     const stream = (await wrappedOpenAI.chat.completions.create({
-  //       model: 'gpt-4',
-  //       messages: [{ role: 'user', content: 'Hello' }],
-  //       stream: true,
-  //     })) as any;
-
-  //     // Consume the stream
-  //     const chunks = [];
-  //     for await (const chunk of stream) {
-  //       chunks.push(chunk);
-  //     }
-
-  //     expect(chunks.length).toBe(3);
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should handle errors and send error traces', async () => {
-  //     // Mock an error
-  //     const testError = new Error('OpenAI API error');
-  //     (mockOpenAI.chat.completions.create as jest.Mock).mockRejectedValue(
-  //       testError,
-  //     );
-
-  //     await statsig.initialize();
-
-  //     await expect(
-  //       wrappedOpenAI.chat.completions.create({
-  //         model: 'gpt-4',
-  //         messages: [{ role: 'user', content: 'Test' }],
-  //       }),
-  //     ).rejects.toThrow('OpenAI API error');
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should redact sensitive information when configured', async () => {
-  //     const redactWrappedOpenAI = wrapOpenAI(mockOpenAI, {
-  //       redact: (obj: any) => {
-  //         if (Array.isArray(obj)) {
-  //           return obj.map((item) => ({
-  //             ...item,
-  //             content: '***REDACTED***',
-  //           }));
-  //         }
-  //         return obj;
-  //       },
-  //     });
-
-  //     await statsig.initialize();
-
-  //     await redactWrappedOpenAI.chat.completions.create({
-  //       model: 'gpt-4',
-  //       messages: [{ role: 'user', content: 'This is sensitive information' }],
-  //     });
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should respect maxJSONChars configuration', async () => {
-  //     const smallMaxCharsOpenAI = wrapOpenAI(mockOpenAI, {
-  //       maxJSONChars: 100, // Very small to trigger truncation
-  //     });
-
-  //     await statsig.initialize();
-
-  //     await smallMaxCharsOpenAI.chat.completions.create({
-  //       model: 'gpt-4',
-  //       messages: [
-  //         {
-  //           role: 'user',
-  //           content: 'A'.repeat(1000), // Long content to trigger truncation
-  //         },
-  //       ],
-  //     });
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should handle array prompts for legacy completions', async () => {
-  //     await statsig.initialize();
-
-  //     await wrappedOpenAI.completions!.create({
-  //       model: 'gpt-3.5-turbo-instruct',
-  //       prompt: ['First prompt', 'Second prompt'],
-  //       max_tokens: 50,
-  //     });
-
-  //     await new Promise((resolve) => setTimeout(resolve, 100));
-
-  //     const traceRequests = traceCalls.filter((call) =>
-  //       call.url.includes('api.statsig.com/otlp/v1/traces'),
-  //     );
-
-  //     expect(traceRequests.length).toBeGreaterThan(0);
-  //   });
-
-  //   test('should work without initializing Statsig (should still wrap but not trace)', async () => {
-  //     // Don't initialize Statsig, just wrap and call
-  //     const response = await wrappedOpenAI.chat.completions.create({
-  //       model: 'gpt-4',
-  //       messages: [{ role: 'user', content: 'Test' }],
-  //     });
-
-  //     expect(response).toBeDefined();
-  //     expect(response.choices[0].message.content).toBe('This is a test response');
-  //   });
-
-  //   test('should not wrap invalid OpenAI-like objects', () => {
-  //     const invalidOpenAI = {
-  //       // Missing required chat.completions structure
-  //       someOtherMethod: () => {},
-  //     };
-
-  //     const wrapped = wrapOpenAI(invalidOpenAI as any);
-
-  //     // Should return the original object
-  //     expect(wrapped).toBe(invalidOpenAI);
-  //   });
 });
