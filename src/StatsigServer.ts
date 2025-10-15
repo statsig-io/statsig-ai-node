@@ -9,15 +9,15 @@ import { Prompt, makePrompt } from './prompts/Prompt';
 
 import { AIEvalResult } from './AIEvalResult';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { Otel } from './otel/otel';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigOptions } from './StatsigOptions';
-import { setupOtel } from './otel/otel';
 
 export class StatsigServer extends StatsigCore {
-  private _otelSdk: NodeSDK | null = null;
+  private _otel: Otel;
   constructor(sdkKey: string, options?: StatsigOptions) {
     super(sdkKey, options);
-    this._otelSdk = setupOtel(
+    this._otel = new Otel(
       sdkKey,
       options?.serviceName ?? '',
       options?.statsigTracingConfig?.enableAutoInstrumentation ?? false,
@@ -25,8 +25,18 @@ export class StatsigServer extends StatsigCore {
   }
 
   async initialize(): Promise<StatsigResult> {
-    this._otelSdk?.start();
-    return await super.initialize();
+    this._otel.start();
+    return super.initialize();
+  }
+
+  async flushEvents(): Promise<StatsigResult> {
+    await this._otel.forceFlush();
+    return super.flushEvents();
+  }
+
+  async shutdown(): Promise<StatsigResult> {
+    await this._otel.shutdown();
+    return super.shutdown();
   }
 
   // TODO: need to remove this from base sdks since the return type should be the prompt class. (or have prompt class extend layer)
