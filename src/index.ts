@@ -1,6 +1,7 @@
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { StatsigServer } from './StatsigServer';
 
+// @ts-expect-error - StatsigServer extends StatsigCore, which has a different return type for getPrompt
 export class Statsig extends StatsigServer {
   private static _sharedAIStatsigInstance: Statsig | null = null;
 
