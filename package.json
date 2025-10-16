@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "prepare": "rm -rf dist/ && tsc",
-    "test": "npm run prepare && jest",
+    "test": "npm run prepare && jest --forceExit",
     "lint": "eslint '*/**/*.{ts,tsx}' --fix --max-warnings 0 --cache --cache-strategy content && git status"
   },
   "keywords": [],
