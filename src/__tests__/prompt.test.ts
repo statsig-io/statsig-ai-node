@@ -32,6 +32,12 @@ describe('Prompt Serving', () => {
     };
   });
 
+  afterEach(async () => {
+    if (statsig) {
+      await statsig.shutdown();
+    }
+  });
+
   afterAll(async () => {
     await scrapi.close();
   });
