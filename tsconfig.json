@@ -2,16 +2,12 @@
   "include": ["src/**/*"],
   "exclude": ["node_modules"],
   "compilerOptions": {
-    "allowJs": false,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "outDir": "dist",
-    "typeRoots": ["node_modules/@types"],
-    "lib": ["ES2020.Promise"],
-    "moduleResolution": "node",
-    "strict": true,
+    "target": "es6", // or another version like "es5", "es2017", etc.
+    "module": "commonjs", // or "esnext", "es6", etc., depending on your needs
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "strict": true, // enables all strict type-checking options
+    "forceConsistentCasingInFileNames": true, // ensures consistent casing in imports
+    "sourceMap": true,
+    "outDir": "dist"
   }
 }
