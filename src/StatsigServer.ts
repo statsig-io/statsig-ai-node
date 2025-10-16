@@ -1,15 +1,15 @@
-import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
+import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
   Layer,
   Statsig as StatsigCore,
   StatsigResult,
   StatsigUser,
 } from '@statsig/statsig-node-core';
-import { Prompt, makePrompt } from './prompts/Prompt';
 
+import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import { AIEvalResult } from './AIEvalResult';
-import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Otel } from './otel/otel';
+import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigOptions } from './StatsigOptions';
 
@@ -39,12 +39,8 @@ export class StatsigServer extends StatsigCore {
     return super.shutdown();
   }
 
-  // TODO: need to remove this from base sdks since the return type should be the prompt class. (or have prompt class extend layer)
-  getPrompt(user: StatsigUser, promptName: string): Layer {
-    return super.getPrompt(user, promptName);
-  }
-
-  getPromptNew(user: StatsigUser, promptName: string): Prompt {
+  // @ts-expect-error - getPrompt has a different return type in the core library
+  getPrompt(user: StatsigUser, promptName: string): Prompt {
     return this.getPromptWithOptions(user, promptName, {});
   }
 
@@ -63,17 +59,21 @@ export class StatsigServer extends StatsigCore {
       '',
     );
 
-    const targetingRulesParameterStore = this.getParameterStore(
-      user,
-      targetingRulesParamStoreName,
-    );
+    if (!targetingRulesParamStoreName) {
+      return makePrompt(this, promptName, promptParameterStore, user);
+    } else {
+      const targetingRulesParameterStore = this.getParameterStore(
+        user,
+        targetingRulesParamStoreName,
+      );
 
-    return makePrompt(
-      this,
-      targetingRulesParamStoreName,
-      targetingRulesParameterStore,
-      user,
-    );
+      return makePrompt(
+        this,
+        targetingRulesParamStoreName,
+        targetingRulesParameterStore,
+        user,
+      );
+    }
   }
 
   getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
@@ -92,7 +92,7 @@ export class StatsigServer extends StatsigCore {
   ): void {
     const { version, score, session_id } = evalResult;
     if (score < 0 || score > 1) {
-      console.error(
+      console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
       );
       return;

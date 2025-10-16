@@ -104,18 +104,18 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     expect(resourceSpan.resource).toBeDefined();
     expect(resourceSpan.resource.attributes).toBeDefined();
     expect(Array.isArray(resourceSpan.resource.attributes)).toBe(true);
-    
+
     // Check for required resource attributes
     const resourceAttrs = resourceSpan.resource.attributes;
     const resourceAttrKeys = resourceAttrs.map((attr: any) => attr.key);
-    
+
     // These are standard OpenTelemetry resource attributes
     const expectedResourceAttrs = [
       'service.name',
       'process.runtime.name',
       'process.runtime.version',
     ];
-    
+
     expectedResourceAttrs.forEach((attrName) => {
       expect(resourceAttrKeys).toContain(attrName);
     });
@@ -128,14 +128,14 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     const scopeSpan = resourceSpan.scopeSpans[0];
     expect(scopeSpan.scope).toBeDefined();
     expect(scopeSpan.scope.name).toBe('statsig-openai-proxy');
-    
+
     // Validate Spans array
     expect(scopeSpan.spans).toBeDefined();
     expect(Array.isArray(scopeSpan.spans)).toBe(true);
     expect(scopeSpan.spans.length).toBeGreaterThan(0);
 
     const span = scopeSpan.spans[0];
-    
+
     // Validate span metadata
     expect(span.traceId).toBeDefined();
     expect(span.spanId).toBeDefined();
@@ -149,7 +149,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     // Validate span attributes
     expect(span.attributes).toBeDefined();
     expect(Array.isArray(span.attributes)).toBe(true);
-    
+
     const spanAttrs = span.attributes;
     const spanAttrMap = spanAttrs.reduce((acc: any, attr: any) => {
       acc[attr.key] = attr.value;
@@ -159,56 +159,68 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     // Required request attributes
     expect(spanAttrMap['gen_ai.system']).toBeDefined();
     expect(spanAttrMap['gen_ai.system'].stringValue).toBe('openai');
-    
+
     expect(spanAttrMap['gen_ai.operation.name']).toBeDefined();
-    expect(spanAttrMap['gen_ai.operation.name'].stringValue).toBe('chat.completions.create');
-    
+    expect(spanAttrMap['gen_ai.operation.name'].stringValue).toBe(
+      'chat.completions.create',
+    );
+
     expect(spanAttrMap['gen_ai.request.model']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.model'].stringValue).toBe('gpt-4');
-    
+
     expect(spanAttrMap['gen_ai.request.temperature']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.temperature'].doubleValue).toBe(0.7);
-    
+
     expect(spanAttrMap['gen_ai.request.max_tokens']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.max_tokens'].intValue).toBe(100);
-    
+
     expect(spanAttrMap['gen_ai.request.stream']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.stream'].boolValue).toBe(false);
-    
+
     expect(spanAttrMap['gen_ai.input.messages_json']).toBeDefined();
     expect(spanAttrMap['gen_ai.input.messages_json'].stringValue).toBeDefined();
-    
+
     // Required response attributes
     expect(spanAttrMap['gen_ai.response.id']).toBeDefined();
     expect(spanAttrMap['gen_ai.response.id'].stringValue).toBeDefined();
-    
+
     expect(spanAttrMap['gen_ai.response.model']).toBeDefined();
     expect(spanAttrMap['gen_ai.response.model'].stringValue).toBe('gpt-4');
-    
+
     expect(spanAttrMap['gen_ai.response.created']).toBeDefined();
     expect(spanAttrMap['gen_ai.response.created'].intValue).toBeDefined();
-    
+
     expect(spanAttrMap['gen_ai.completion.choices_count']).toBeDefined();
     expect(spanAttrMap['gen_ai.completion.choices_count'].intValue).toBe(1);
-    
+
     expect(spanAttrMap['gen_ai.response.finish_reason']).toBeDefined();
-    expect(spanAttrMap['gen_ai.response.finish_reason'].stringValue).toBeDefined();
-    
+    expect(
+      spanAttrMap['gen_ai.response.finish_reason'].stringValue,
+    ).toBeDefined();
+
     expect(spanAttrMap['gen_ai.completion']).toBeDefined();
     expect(spanAttrMap['gen_ai.completion'].stringValue).toBeDefined();
-    
+
     // Required usage attributes
     expect(spanAttrMap['gen_ai.usage.prompt_tokens']).toBeDefined();
-    expect(spanAttrMap['gen_ai.usage.prompt_tokens'].intValue).toBeGreaterThan(0);
-    
+    expect(spanAttrMap['gen_ai.usage.prompt_tokens'].intValue).toBeGreaterThan(
+      0,
+    );
+
     expect(spanAttrMap['gen_ai.usage.completion_tokens']).toBeDefined();
-    expect(spanAttrMap['gen_ai.usage.completion_tokens'].intValue).toBeGreaterThan(0);
-    
+    expect(
+      spanAttrMap['gen_ai.usage.completion_tokens'].intValue,
+    ).toBeGreaterThan(0);
+
     expect(spanAttrMap['gen_ai.usage.total_tokens']).toBeDefined();
-    expect(spanAttrMap['gen_ai.usage.total_tokens'].intValue).toBeGreaterThan(0);
-    
+    expect(spanAttrMap['gen_ai.usage.total_tokens'].intValue).toBeGreaterThan(
+      0,
+    );
+
     // Required metrics attributes
     expect(spanAttrMap['gen_ai.metrics.time_to_first_token_ms']).toBeDefined();
-    expect(spanAttrMap['gen_ai.metrics.time_to_first_token_ms'].intValue).toBeGreaterThanOrEqual(0);
+    expect(
+      spanAttrMap['gen_ai.metrics.time_to_first_token_ms'].intValue,
+    ).toBeGreaterThanOrEqual(0);
   });
 });
