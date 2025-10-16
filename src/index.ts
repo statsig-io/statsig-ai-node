@@ -36,7 +36,7 @@ export class Statsig extends StatsigServer {
   }
 
   private static _createErrorStatsigAIInstance(): Statsig {
-    let dummyInstance = new Statsig('INVALID-KEY');
+    const dummyInstance = new Statsig('INVALID-KEY');
     dummyInstance.shutdown();
     return dummyInstance;
   }

@@ -472,9 +472,9 @@ export class StatsigOpenAIProxy {
               return { data: wrapped };
             }
 
-            const apip = maybe as APIPromise<any>;
+            const apip = maybe;
             if (typeof apip.withResponse === 'function') {
-              const { data, response } = await apip.withResponse!();
+              const { data, response } = await apip.withResponse();
               opts.onData(span, data, t0);
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -520,7 +520,7 @@ export class StatsigOpenAIProxy {
         }
         return undefined;
       },
-    }) as APIPromise<any>;
+    });
   }
 
   private wrapStreamAndFinish<T>(
@@ -598,7 +598,7 @@ function proxifyNamespace(
 
 function setAttrs(span: Span, kv: Record<string, AttributeValue | undefined>) {
   for (const [k, v] of Object.entries(kv)) {
-    if (v !== undefined) span.setAttribute(k, v as AttributeValue);
+    if (v !== undefined) span.setAttribute(k, v);
   }
 }
 
