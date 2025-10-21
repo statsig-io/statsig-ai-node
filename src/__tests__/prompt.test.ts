@@ -5,7 +5,7 @@ import { StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import path from 'path';
 
-xdescribe('Prompt Serving', () => {
+describe('Prompt Serving', () => {
   let statsig: Statsig;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
