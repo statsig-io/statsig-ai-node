@@ -21,7 +21,7 @@
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",
     "@opentelemetry/semantic-conventions": "^1.36.0",
-    "@statsig/statsig-node-core": "0.10.2"
+    "@statsig/statsig-node-core": "*"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
