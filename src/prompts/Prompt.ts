@@ -1,8 +1,4 @@
-import {
-  DynamicConfig,
-  ParameterStore,
-  StatsigUser,
-} from '@statsig/statsig-node-core';
+import { ParameterStore, StatsigUser } from '@statsig/statsig-node-core';
 
 import { PromptVersion } from './PromptVersion';
 import { StatsigServer } from '../StatsigServer';

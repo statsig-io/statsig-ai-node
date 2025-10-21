@@ -1,6 +1,14 @@
 {
   "include": ["src/**/*"],
-  "exclude": ["node_modules"],
+  "exclude": [
+    "node_modules",
+    "src/__tests__/*",
+    "dist",
+    "dist/**/*",
+    "dist/src/**/*",
+    "build",
+    "tsconfig.json"
+  ],
   "compilerOptions": {
     "target": "es6", // or another version like "es5", "es2017", etc.
     "module": "commonjs", // or "esnext", "es6", etc., depending on your needs
@@ -8,6 +16,7 @@
     "strict": true, // enables all strict type-checking options
     "forceConsistentCasingInFileNames": true, // ensures consistent casing in imports
     "sourceMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "declaration": true // generates .d.ts files
   }
 }

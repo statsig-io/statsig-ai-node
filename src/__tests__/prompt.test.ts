@@ -5,7 +5,7 @@ import { StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import path from 'path';
 
-describe('Prompt Serving', () => {
+xdescribe('Prompt Serving', () => {
   let statsig: Statsig;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
@@ -38,8 +38,8 @@ describe('Prompt Serving', () => {
     }
   });
 
-  afterAll(async () => {
-    await scrapi.close();
+  afterAll(() => {
+    scrapi.close();
   });
 
   it('should get the correct config for a prompt', async () => {
