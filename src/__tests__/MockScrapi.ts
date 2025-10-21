@@ -36,35 +36,15 @@ export class MockScrapi {
     this.port = Math.floor(Math.random() * 2000) + 4000;
     this.server = this.app.listen(this.port, onReady);
 
-    // Handle zstd decompression first
+    // compression middleware
     this.app.use(async (req: express.Request, res: express.Response, next) => {
       if (req.headers['content-encoding'] === 'zstd') {
         await decompressZstd(req);
-      }
-      next();
-    });
-
-    // Use express.json() for non-zstd requests (mainly otel requests)
-    this.app.use((req: express.Request, res: express.Response, next) => {
-      if (req.headers['content-encoding'] === 'zstd') {
-        // Skip express.json for zstd, body is already parsed by decompressZstd
         next();
       } else {
         express.json()(req, res, next);
       }
     });
-
-    // Compression middleware
-    this.app.use(
-      compression({
-        filter: (req, res) => {
-          if (req.headers['content-encoding'] === 'zstd') {
-            return false;
-          }
-          return compression.filter(req, res);
-        },
-      }),
-    );
 
     // Main route handler
     this.app.use(async (req: express.Request, res: express.Response) => {

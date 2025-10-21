@@ -38,8 +38,8 @@ describe('Prompt Serving', () => {
     }
   });
 
-  afterAll(async () => {
-    await scrapi.close();
+  afterAll(() => {
+    scrapi.close();
   });
 
   it('should get the correct config for a prompt', async () => {

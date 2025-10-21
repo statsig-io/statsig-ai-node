@@ -1,6 +1,23 @@
+export * from '@statsig/statsig-node-core';
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { StatsigServer } from './StatsigServer';
+import { Prompt } from './prompts/Prompt';
+import { PromptVersion } from './prompts/PromptVersion';
+import { AgentVersion } from './agents/AgentVersion';
+import { AIEvalResult } from './AIEvalResult';
+import { AgentConfig } from './agents/AgentConfig';
+import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
+import { wrapOpenAI } from './wrappers/openai';
 
+export {
+  Prompt,
+  PromptVersion,
+  AgentVersion,
+  AIEvalResult,
+  AgentConfig,
+  PromptEvaluationOptions,
+  wrapOpenAI,
+};
 // @ts-expect-error - StatsigServer extends StatsigCore, which has a different return type for getPrompt
 export class Statsig extends StatsigServer {
   private static _sharedAIStatsigInstance: Statsig | null = null;

@@ -1,10 +1,11 @@
 {
   "name": "@statsig/statsig-ai-node",
-  "version": "0.0.1",
+  "version": "0.0.1-beta.1",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "prepare": "rm -rf dist/ && tsc",
-    "test": "npm run prepare && jest --forceExit",
+    "test": "npm run prepare && jest --forceExit --detectOpenHandles",
     "lint": "eslint '*/**/*.{ts,tsx}' --fix --max-warnings 0 --cache --cache-strategy content && git status"
   },
   "keywords": [],
@@ -20,7 +21,7 @@
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",
     "@opentelemetry/semantic-conventions": "^1.36.0",
-    "@statsig/statsig-node-core": "0.9.1"
+    "@statsig/statsig-node-core": "0.10.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

@@ -17,7 +17,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   let openai: Partial<OpenAI>;
   let wrappedOpenAI: OpenAILike;
   let options: StatsigOptions;
-  const sdkKey = 'secret-test-key';
 
   beforeAll(async () => {
     scrapi = await MockScrapi.create();
