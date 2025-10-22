@@ -1,20 +1,16 @@
-import {
-  OpenAILike,
-  StatsigOpenAIProxyConfig,
-  isOpenAILike,
-} from './openai-configs';
+import { StatsigOpenAIProxyConfig, isOpenAILike } from './openai-configs';
 
 import { StatsigOpenAIProxy } from './openai-impl';
 
-export function wrapOpenAI(
-  openai: OpenAILike,
+export function wrapOpenAI<T extends object>(
+  openai: T,
   config?: StatsigOpenAIProxyConfig,
-): OpenAILike {
+): T {
   if (!isOpenAILike(openai)) {
     console.warn('Unsupported OpenAI-like object. Not wrapping.');
     return openai;
   }
 
   const proxy = new StatsigOpenAIProxy(openai, config ?? {});
-  return proxy.client;
+  return proxy.client as T;
 }
