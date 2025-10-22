@@ -84,7 +84,7 @@ describe('Prompt Serving', () => {
       userID: 'test-user',
     });
     const prompt = statsig.getPrompt(user, 'test_prompt');
-    const candidateVersions = prompt.getCandidateConfigs();
+    const candidateVersions = prompt.getCandidates();
     expect(candidateVersions).toBeDefined();
     expect(candidateVersions.length).toBe(2);
 

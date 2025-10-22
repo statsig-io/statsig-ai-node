@@ -44,7 +44,7 @@ export class Prompt {
     return this._liveConfig;
   }
 
-  getCandidateConfigs(): PromptVersion[] {
+  getCandidates(): PromptVersion[] {
     return this._candidateConfigs;
   }
 }
