@@ -1,6 +1,6 @@
 {
   "name": "@statsig/statsig-ai-node",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.6",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -20,8 +20,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.203.0",
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",
-    "@opentelemetry/semantic-conventions": "^1.36.0",
-    "@statsig/statsig-node-core": "*"
+    "@opentelemetry/semantic-conventions": "^1.36.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
@@ -35,7 +34,8 @@
     "compression": "^1.7.5",
     "express": "^4.21.2",
     "openai": "^4.84.0",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "@statsig/statsig-node-core": "*"
   },
   "engines": {
     "node": ">= 6.14.2 < 7 || >= 8.11.2 < 9 || >= 9.11.0 < 10 || >= 10.0.0"
