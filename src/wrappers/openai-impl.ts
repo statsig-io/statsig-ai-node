@@ -139,7 +139,7 @@ export class StatsigOpenAIProxy {
 
           setJSON(
             span,
-            'gen_ai.input.messages_json',
+            'gen_ai.input',
             this._redact?.(params?.messages) ?? params?.messages,
             this._maxJSONChars,
           );
@@ -187,7 +187,7 @@ export class StatsigOpenAIProxy {
           'gen_ai.request.stream': !!params?.stream,
           'gen_ai.request.n': params?.n,
         },
-        inputJSONKey: 'gen_ai.input.messages_json',
+        inputJSONKey: 'gen_ai.input',
         inputJSONValue: this._redact?.(params?.messages) ?? params?.messages,
       },
     );
@@ -259,7 +259,7 @@ export class StatsigOpenAIProxy {
         'gen_ai.request.model': params?.model,
         'gen_ai.request.encoding_format': params?.encoding_format ?? 'float',
       },
-      'gen_ai.input_json',
+      'gen_ai.input',
       this._redact?.(params?.input) ?? params?.input,
     );
 
@@ -295,7 +295,7 @@ export class StatsigOpenAIProxy {
       {
         'gen_ai.request.model': params?.model,
       },
-      'gen_ai.input_json',
+      'gen_ai.input',
       this._redact?.(params) ?? params,
     );
 
@@ -342,7 +342,7 @@ export class StatsigOpenAIProxy {
           });
           setJSON(
             span,
-            'gen_ai.input_json',
+            'gen_ai.input',
             this._redact?.(params?.input) ?? params?.input,
             this._maxJSONChars,
           );
@@ -358,7 +358,7 @@ export class StatsigOpenAIProxy {
           'gen_ai.request.model': params?.model,
           'gen_ai.request.stream': !!params?.stream,
         },
-        inputJSONKey: 'gen_ai.input_json',
+        inputJSONKey: 'gen_ai.input',
         inputJSONValue: this._redact?.(params?.input) ?? params?.input,
       },
     );
@@ -372,7 +372,7 @@ export class StatsigOpenAIProxy {
         'gen_ai.request.model': params?.model,
         'gen_ai.request.stream': true,
       },
-      'gen_ai.input_json',
+      'gen_ai.input',
       this._redact?.(params?.input) ?? params?.input,
     );
 

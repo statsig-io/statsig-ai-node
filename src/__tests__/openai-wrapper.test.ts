@@ -2,14 +2,14 @@ import * as otelModule from '../otel/otel';
 
 import { DefaultMockResponses, MockOpenAI } from './MockOpenAI';
 
-import { MockScrapi } from './MockScrapi';
+import fs from 'fs';
 import OpenAI from 'openai';
-import { OpenAILike } from '../wrappers/openai-configs';
+import path from 'path';
 import { Statsig } from '..';
 import { StatsigOptions } from '../StatsigOptions';
-import fs from 'fs';
-import path from 'path';
 import { wrapOpenAI } from '../wrappers/openai';
+import { OpenAILike } from '../wrappers/openai-configs';
+import { MockScrapi } from './MockScrapi';
 
 describe('OpenAI Wrapper with Statsig Tracing', () => {
   let statsig: Statsig;
@@ -176,8 +176,8 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     expect(spanAttrMap['gen_ai.request.stream']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.stream'].boolValue).toBe(false);
 
-    expect(spanAttrMap['gen_ai.input.messages_json']).toBeDefined();
-    expect(spanAttrMap['gen_ai.input.messages_json'].stringValue).toBeDefined();
+    expect(spanAttrMap['gen_ai.input']).toBeDefined();
+    expect(spanAttrMap['gen_ai.input'].stringValue).toBeDefined();
 
     // Required response attributes
     expect(spanAttrMap['gen_ai.response.id']).toBeDefined();
