@@ -5,10 +5,10 @@ import {
 } from '@statsig/statsig-node-core';
 
 import { AgentVersion } from './AgentVersion';
-import { StatsigServer } from '../StatsigServer';
+import { Statsig } from '@statsig/statsig-node-core';
 
 export function makeAgentConfig(
-  statsig: StatsigServer,
+  statsig: Statsig,
   user: StatsigUser,
   name: string,
   paramStore: ParameterStore,

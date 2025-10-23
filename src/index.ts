@@ -1,6 +1,5 @@
 export * from '@statsig/statsig-node-core';
-import { StatsigOptions } from '@statsig/statsig-node-core';
-import { StatsigServer } from './StatsigServer';
+import { StatsigAIInstance } from './StatsigAI';
 import { Prompt } from './prompts/Prompt';
 import { PromptVersion } from './prompts/PromptVersion';
 import { AgentVersion } from './agents/AgentVersion';
@@ -8,6 +7,8 @@ import { AIEvalResult } from './AIEvalResult';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
+import { Statsig } from '@statsig/statsig-node-core';
+import { StatsigAIOptions } from './StatsigAIOptions';
 
 export {
   Prompt,
@@ -18,43 +19,54 @@ export {
   PromptEvaluationOptions,
   wrapOpenAI,
 };
-// @ts-expect-error - StatsigServer extends StatsigCore, which has a different return type for getPrompt
-export class Statsig extends StatsigServer {
-  private static _sharedAIStatsigInstance: Statsig | null = null;
+export class StatsigAI extends StatsigAIInstance {
+  private static _sharedAIStatsigInstance: StatsigAI | null = null;
 
-  public static shared(): Statsig {
-    if (!Statsig.hasShared()) {
+  public static shared(): StatsigAI {
+    if (!StatsigAI.hasShared()) {
       console.warn(
         '[Statsig] No shared instance has been created yet. Call newShared() before using it. Returning an invalid instance',
       );
-      return Statsig._createErrorStatsigAIInstance();
+      return StatsigAI._createErrorStatsigAIInstance();
     }
-    return Statsig._sharedAIStatsigInstance!;
+    return StatsigAI._sharedAIStatsigInstance!;
   }
 
   public static hasShared(): boolean {
-    return Statsig._sharedAIStatsigInstance !== null;
+    return StatsigAI._sharedAIStatsigInstance !== null;
   }
 
-  public static newShared(sdkKey: string, options?: StatsigOptions): Statsig {
-    if (Statsig.hasShared()) {
+  public static newShared(
+    sdkKey: string,
+    statsig: Statsig,
+    options?: StatsigAIOptions,
+  ): StatsigAI {
+    if (StatsigAI.hasShared()) {
       console.warn(
         '[Statsig] Shared instance has been created, call removeSharedInstance() if you want to create another one. ' +
           'Returning an invalid instance',
       );
-      return Statsig._createErrorStatsigAIInstance();
+      return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    Statsig._sharedAIStatsigInstance = new Statsig(sdkKey, options);
-    return Statsig._sharedAIStatsigInstance;
+    StatsigAI._sharedAIStatsigInstance = new StatsigAI(
+      sdkKey,
+      statsig,
+      options,
+    );
+
+    return StatsigAI._sharedAIStatsigInstance;
   }
 
   public static removeSharedInstance() {
-    Statsig._sharedAIStatsigInstance = null;
+    StatsigAI._sharedAIStatsigInstance = null;
   }
 
-  private static _createErrorStatsigAIInstance(): Statsig {
-    const dummyInstance = new Statsig('INVALID-KEY');
+  private static _createErrorStatsigAIInstance(): StatsigAI {
+    const dummyInstance = new StatsigAI(
+      'INVALID-KEY',
+      new Statsig('INVALID-KEY'),
+    );
     dummyInstance.shutdown();
     return dummyInstance;
   }
