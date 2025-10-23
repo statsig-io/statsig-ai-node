@@ -1,10 +1,10 @@
 import { ParameterStore, StatsigUser } from '@statsig/statsig-node-core';
 
 import { PromptVersion } from './PromptVersion';
-import { StatsigServer } from '../StatsigServer';
+import { Statsig } from '@statsig/statsig-node-core';
 
 export function makePrompt(
-  statsig: StatsigServer,
+  statsig: Statsig,
   name: string,
   paramStore: ParameterStore,
   user: StatsigUser,

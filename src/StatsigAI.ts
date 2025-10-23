@@ -1,45 +1,41 @@
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import {
-  Layer,
-  Statsig as StatsigCore,
-  StatsigResult,
-  StatsigUser,
-} from '@statsig/statsig-node-core';
+import { Statsig, StatsigUser } from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import { AIEvalResult } from './AIEvalResult';
 import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
-import { StatsigOptions } from './StatsigOptions';
+import { StatsigAIOptions } from './StatsigAIOptions';
 
-export class StatsigServer extends StatsigCore {
+export class StatsigAIInstance {
   private _otel: Otel;
-  constructor(sdkKey: string, options?: StatsigOptions) {
-    super(sdkKey, options);
+  private _statsig: Statsig;
+
+  constructor(sdkKey: string, statsig: Statsig, options?: StatsigAIOptions) {
+    this._statsig = statsig;
     this._otel = new Otel(
       sdkKey,
-      options?.serviceName ?? '',
+      options?.statsigTracingConfig?.serviceName ?? '',
       options?.statsigTracingConfig?.enableAutoInstrumentation ?? false,
     );
   }
 
-  async initialize(): Promise<StatsigResult> {
+  async initialize(): Promise<void> {
     this._otel.start();
-    return super.initialize();
   }
 
-  async flushEvents(): Promise<StatsigResult> {
+  async flushEvents(): Promise<void> {
     await this._otel.forceFlush();
-    return super.flushEvents();
   }
 
-  async shutdown(): Promise<StatsigResult> {
+  async shutdown(): Promise<void> {
     await this._otel.shutdown();
-    return super.shutdown();
   }
 
-  // @ts-expect-error - getPrompt has a different return type in the core library
+  getStatsig(): Statsig {
+    return this._statsig;
+  }
+
   getPrompt(user: StatsigUser, promptName: string): Prompt {
     return this.getPromptWithOptions(user, promptName, {});
   }
@@ -49,7 +45,7 @@ export class StatsigServer extends StatsigCore {
     promptName: string,
     _options: PromptEvaluationOptions,
   ): Prompt {
-    const promptParameterStore = this.getParameterStore(
+    const promptParameterStore = this._statsig.getParameterStore(
       user,
       `prompt:${promptName}`,
     );
@@ -60,15 +56,15 @@ export class StatsigServer extends StatsigCore {
     );
 
     if (!targetingRulesParamStoreName) {
-      return makePrompt(this, promptName, promptParameterStore, user);
+      return makePrompt(this._statsig, promptName, promptParameterStore, user);
     } else {
-      const targetingRulesParameterStore = this.getParameterStore(
+      const targetingRulesParameterStore = this._statsig.getParameterStore(
         user,
         targetingRulesParamStoreName,
       );
 
       return makePrompt(
-        this,
+        this._statsig,
         targetingRulesParamStoreName,
         targetingRulesParameterStore,
         user,
@@ -77,12 +73,17 @@ export class StatsigServer extends StatsigCore {
   }
 
   getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
-    const agentParameterStore = this.getParameterStore(
+    const agentParameterStore = this._statsig.getParameterStore(
       user,
       `agent:${agentConfigName}`,
     );
 
-    return makeAgentConfig(this, user, agentConfigName, agentParameterStore);
+    return makeAgentConfig(
+      this._statsig,
+      user,
+      agentConfigName,
+      agentParameterStore,
+    );
   }
 
   logEvalResult(
@@ -98,13 +99,18 @@ export class StatsigServer extends StatsigCore {
       return;
     }
 
-    this.logEvent(user, 'statsig::eval_result', version.getAIConfigName(), {
-      score: score.toString(),
-      session_id: session_id,
-      version_name: version.getName() ?? '',
-      version_id: version.getID() ?? '',
-      grader_name: graderName ?? '',
-      ai_config_name: version.getAIConfigName() ?? '',
-    });
+    this._statsig.logEvent(
+      user,
+      'statsig::eval_result',
+      version.getAIConfigName(),
+      {
+        score: score.toString(),
+        session_id: session_id,
+        version_name: version.getName() ?? '',
+        version_id: version.getID() ?? '',
+        grader_name: graderName ?? '',
+        ai_config_name: version.getAIConfigName() ?? '',
+      },
+    );
   }
 }

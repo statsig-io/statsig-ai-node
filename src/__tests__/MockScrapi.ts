@@ -54,7 +54,7 @@ export class MockScrapi {
         body: req.body,
       };
 
-      console.log(`[Scrapi] Req ${req.method}:`, req.url, Date.now());
+      // console.log(`[Scrapi] Req ${req.method}:`, req.url, Date.now());
 
       this.requests.push(recorded);
       this.waiters.forEach((waiter) => waiter(recorded));

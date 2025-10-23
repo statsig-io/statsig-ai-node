@@ -1,12 +1,13 @@
 import { MockScrapi } from './MockScrapi';
-import { Statsig } from '..';
-import { StatsigOptions } from '../StatsigOptions';
+import { Statsig, StatsigOptions } from '@statsig/statsig-node-core';
+import { StatsigAI } from '..';
 import { StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import path from 'path';
 
 describe('Prompt Serving', () => {
   let statsig: Statsig;
+  let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
   const sdkKey = 'secret-test-key';
@@ -36,6 +37,9 @@ describe('Prompt Serving', () => {
     if (statsig) {
       await statsig.shutdown();
     }
+    if (statsigAI) {
+      await statsigAI.shutdown();
+    }
   });
 
   afterAll(() => {
@@ -45,10 +49,12 @@ describe('Prompt Serving', () => {
   it('should get the correct config for a prompt', async () => {
     statsig = new Statsig(sdkKey, options);
     await statsig.initialize();
+    statsigAI = new StatsigAI(sdkKey, statsig);
+    await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
     });
-    const prompt = statsig.getPrompt(user, 'test_prompt');
+    const prompt = statsigAI.getPrompt(user, 'test_prompt');
     expect(prompt).toBeDefined();
     expect(prompt.getName()).toBe('test_prompt');
   });
@@ -56,10 +62,12 @@ describe('Prompt Serving', () => {
   it('should get the correct live prompt version', async () => {
     statsig = new Statsig(sdkKey, options);
     await statsig.initialize();
+    statsigAI = new StatsigAI(sdkKey, statsig);
+    await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
     });
-    const prompt = statsig.getPrompt(user, 'test_prompt');
+    const prompt = statsigAI.getPrompt(user, 'test_prompt');
     const liveVersion = prompt.getLive();
     expect(liveVersion).toBeDefined();
     expect(liveVersion.getID()).toBe('6KGzeo8TR9JTL7CZl7vccd');
@@ -80,10 +88,12 @@ describe('Prompt Serving', () => {
   it('should get the correct candidate prompt versions', async () => {
     statsig = new Statsig(sdkKey, options);
     await statsig.initialize();
+    statsigAI = new StatsigAI(sdkKey, statsig);
+    await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
     });
-    const prompt = statsig.getPrompt(user, 'test_prompt');
+    const prompt = statsigAI.getPrompt(user, 'test_prompt');
     const candidateVersions = prompt.getCandidates();
     expect(candidateVersions).toBeDefined();
     expect(candidateVersions.length).toBe(2);
