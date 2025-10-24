@@ -115,11 +115,11 @@ describe('StatsigAI', () => {
       statsigAI = new StatsigAI(sdkKey, statsig);
       await statsigAI.initialize();
 
-      const user = new StatsigUser({ userID: 'test-user-1234' });
-      const prompt = statsigAI.getPrompt(user, 'test-prompt-1');
+      const user = new StatsigUser({ userID: 'test-user' });
+      const prompt = statsigAI.getPrompt(user, 'test_prompt');
 
       expect(prompt).toBeDefined();
-      expect(prompt.getName()).toBe('test-prompt-1');
+      expect(prompt.getName()).toBe('test_prompt');
     });
 
     it('should be able to use statsig instance methods', async () => {
@@ -129,7 +129,7 @@ describe('StatsigAI', () => {
       statsigAI = new StatsigAI(sdkKey, statsig);
       await statsigAI.initialize();
 
-      const user = new StatsigUser({ userID: 'test-user-1234' });
+      const user = new StatsigUser({ userID: 'test-user' });
       expect(statsigAI.getStatsig()).toBe(statsig);
       expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
     });
