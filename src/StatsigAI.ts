@@ -45,49 +45,46 @@ export class StatsigAIInstance {
     promptName: string,
     _options: PromptEvaluationOptions,
   ): Prompt {
-    const MAX_DEPTH = 10;
-    let depth = 0;
-
     const baseParamStoreName = `prompt:${promptName}`;
     let currentParamStoreName = baseParamStoreName;
 
     let nextParamStoreName = this._statsig
       .getParameterStore(user, currentParamStoreName)
-      .getValue("prompt_targeting_rules", "");
+      .getValue('prompt_targeting_rules', '');
 
     while (
-      nextParamStoreName !== "" &&
-      nextParamStoreName !== currentParamStoreName &&
-      depth < MAX_DEPTH
+      nextParamStoreName !== '' &&
+      nextParamStoreName !== currentParamStoreName
     ) {
-      const nextParamStore = this._statsig.getParameterStore(user, nextParamStoreName);
-      const possibleNextParamStoreName = nextParamStore.getValue("prompt_targeting_rules", "");
+      const nextParamStore = this._statsig.getParameterStore(
+        user,
+        nextParamStoreName,
+      );
+      const possibleNextParamStoreName = nextParamStore.getValue(
+        'prompt_targeting_rules',
+        '',
+      );
 
-      if (possibleNextParamStoreName === "" || possibleNextParamStoreName === nextParamStoreName) {
+      if (
+        possibleNextParamStoreName === '' ||
+        possibleNextParamStoreName === nextParamStoreName
+      ) {
         currentParamStoreName = nextParamStoreName;
         break;
       }
 
       currentParamStoreName = nextParamStoreName;
       nextParamStoreName = possibleNextParamStoreName;
-
-      depth++;
-    }
-
-    if (depth >= MAX_DEPTH) {
-      currentParamStoreName = baseParamStoreName;
-      console.warn(
-        `[Statsig] Max targeting depth (${MAX_DEPTH}) reached while resolving prompt: ${promptName}. ` +
-          `Possible circular reference starting from "${baseParamStoreName}".`
-      );
     }
 
     const finalParamStore = this._statsig.getParameterStore(
       user,
-      currentParamStoreName
+      currentParamStoreName,
     );
 
-    return makePrompt(this._statsig, currentParamStoreName, finalParamStore, user);
+    const currentPromptName = currentParamStoreName.split(':')[1];
+
+    return makePrompt(this._statsig, currentPromptName, finalParamStore, user);
   }
 
   getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
