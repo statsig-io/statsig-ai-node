@@ -45,6 +45,9 @@ export class StatsigAIInstance {
     promptName: string,
     _options: PromptEvaluationOptions,
   ): Prompt {
+    const MAX_DEPTH = 300;
+    let depth = 0;
+
     const baseParamStoreName = `prompt:${promptName}`;
     let currentParamStoreName = baseParamStoreName;
 
@@ -54,7 +57,8 @@ export class StatsigAIInstance {
 
     while (
       nextParamStoreName !== '' &&
-      nextParamStoreName !== currentParamStoreName
+      nextParamStoreName !== currentParamStoreName &&
+      depth < MAX_DEPTH
     ) {
       const nextParamStore = this._statsig.getParameterStore(
         user,
@@ -75,6 +79,16 @@ export class StatsigAIInstance {
 
       currentParamStoreName = nextParamStoreName;
       nextParamStoreName = possibleNextParamStoreName;
+
+      depth++;
+    }
+
+    if (depth >= MAX_DEPTH) {
+      currentParamStoreName = baseParamStoreName;
+      console.warn(
+        `[Statsig] Max targeting depth (${MAX_DEPTH}) reached while resolving prompt: ${promptName}. ` +
+          `Possible circular reference starting from "${baseParamStoreName}".`,
+      );
     }
 
     const finalParamStore = this._statsig.getParameterStore(
