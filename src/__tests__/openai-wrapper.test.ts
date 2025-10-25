@@ -76,7 +76,9 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   it('should send traces when calling chat.completions.create', async () => {
     statsig = new Statsig('secret-test-key', options);
     await statsig.initialize();
-    statsigAI = new StatsigAI('secret-test-key', statsig);
+    statsigAI = new StatsigAI('secret-test-key', statsig, {
+      enableDefaultOtel: true,
+    });
     await statsigAI.initialize();
 
     const response = await wrappedOpenAI.chat.completions.create({

@@ -4,6 +4,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { trace } from '@opentelemetry/api';
+import { IOtelClient } from './IOtelClient';
 
 export const createExporterOptions = (endpoint: string, sdkKey: string) => ({
   url: 'https://api.statsig.com/otlp' + endpoint,
@@ -12,7 +13,7 @@ export const createExporterOptions = (endpoint: string, sdkKey: string) => ({
   },
 });
 
-export class Otel {
+export class Otel implements IOtelClient {
   private sdkKey: string;
   private serviceName: string;
   private enableAutoInstrumentation: boolean;
@@ -51,15 +52,19 @@ export class Otel {
     return sdk;
   }
 
-  start() {
+  addStatsigTraceExporter(): void {
+    // no-op for default OpenTelemetry client
+  }
+
+  async initialize(): Promise<void> {
     this.sdk?.start();
   }
 
-  async shutdown() {
+  async shutdown(): Promise<void> {
     await this.sdk?.shutdown();
   }
 
-  async forceFlush() {
+  async flush(): Promise<void> {
     if ((this.sdk as any)?._tracerProvider?.forceFlush) {
       await (this.sdk as any)._tracerProvider.forceFlush();
     }

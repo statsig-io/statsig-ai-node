@@ -6,44 +6,37 @@ import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigAIOptions } from './StatsigAIOptions';
+import { IOtelClient } from './otel/IOtelClient';
 
 export class StatsigAIInstance {
-  private _otel: Otel;
+  private _otel: IOtelClient | null = null;
   private _statsig: Statsig;
 
   constructor(sdkKey: string, statsig: Statsig, options?: StatsigAIOptions) {
     this._statsig = statsig;
-    this._otel = new Otel(
-      sdkKey,
-      options?.statsigTracingConfig?.serviceName ?? '',
-      options?.statsigTracingConfig?.enableAutoInstrumentation ?? false,
-    );
+    this._setUpOtel(sdkKey, options);
   }
 
   async initialize(): Promise<void> {
-    this._otel.start();
+    await this._otel?.initialize();
   }
 
   async flushEvents(): Promise<void> {
-    await this._otel.forceFlush();
+    await this._otel?.flush();
   }
 
   async shutdown(): Promise<void> {
-    await this._otel.shutdown();
+    await this._otel?.shutdown();
   }
 
   getStatsig(): Statsig {
     return this._statsig;
   }
 
-  getPrompt(user: StatsigUser, promptName: string): Prompt {
-    return this.getPromptWithOptions(user, promptName, {});
-  }
-
-  getPromptWithOptions(
+  getPrompt(
     user: StatsigUser,
     promptName: string,
-    _options: PromptEvaluationOptions,
+    _options?: PromptEvaluationOptions,
   ): Prompt {
     const promptParameterStore = this._statsig.getParameterStore(
       user,
@@ -111,6 +104,18 @@ export class StatsigAIInstance {
         grader_name: graderName ?? '',
         ai_config_name: version.getAIConfigName() ?? '',
       },
+    );
+  }
+
+  private _setUpOtel(sdkKey: string, options?: StatsigAIOptions): void {
+    if (!options?.enableDefaultOtel) {
+      return;
+    }
+
+    this._otel = new Otel(
+      sdkKey,
+      options.statsigTracingConfig?.serviceName ?? '',
+      options.statsigTracingConfig?.enableAutoInstrumentation ?? false,
     );
   }
 }
