@@ -1,8 +1,9 @@
 export interface StatsigTracingConfig {
-  serviceName: string;
-  enableAutoInstrumentation: boolean;
+  serviceName?: string;
+  enableAutoInstrumentation?: boolean;
 }
 
 export interface StatsigAIOptions {
+  enableDefaultOtel?: boolean;
   statsigTracingConfig?: StatsigTracingConfig;
 }

@@ -102,9 +102,6 @@ export class PromptVersion {
     fallback: boolean | number | string | object | Array<any> | null,
   ): any {
     const value = this._promptVariant.getValue(key, fallback);
-    if (value == null) {
-      throw new Error(`Version value for key ${key} is null`);
-    }
     return value;
   }
 
