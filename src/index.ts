@@ -1,8 +1,8 @@
 export * from '@statsig/statsig-node-core';
 import {
   StatsigAIInstance,
-  StatsigInitConfig,
-  StatsigInstanceConfig,
+  StatsigCreateConfig,
+  StatsigAttachConfig,
   StatsigSourceConfig,
 } from './StatsigAI';
 import { Prompt } from './prompts/Prompt';
@@ -42,12 +42,12 @@ export class StatsigAI extends StatsigAIInstance {
   }
 
   public static newShared(
-    statsigInitConfig: StatsigInitConfig,
+    statsigInitConfig: StatsigCreateConfig,
     aiOptions?: StatsigAIOptions,
   ): StatsigAI;
 
   public static newShared(
-    statsigInstanceConfig: StatsigInstanceConfig,
+    statsigInstanceConfig: StatsigAttachConfig,
     aiOptions?: StatsigAIOptions,
   ): StatsigAI;
 

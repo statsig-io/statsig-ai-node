@@ -12,17 +12,17 @@ import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigAIOptions } from './StatsigAIOptions';
 import { IOtelClient } from './otel/IOtelClient';
 
-export interface StatsigInitConfig {
+export interface StatsigCreateConfig {
   sdkKey: string;
   statsigOptions?: StatsigOptions;
 }
 
-export interface StatsigInstanceConfig {
+export interface StatsigAttachConfig {
   sdkKey: string;
   statsig: Statsig;
 }
 
-export type StatsigSourceConfig = StatsigInitConfig | StatsigInstanceConfig;
+export type StatsigSourceConfig = StatsigCreateConfig | StatsigAttachConfig;
 
 export class StatsigAIInstance {
   private _otel: IOtelClient | null = null;
@@ -30,11 +30,11 @@ export class StatsigAIInstance {
   private _ownsStatsigInstance: boolean = false;
 
   constructor(
-    statsigInitConfig: StatsigInitConfig,
+    statsigInitConfig: StatsigCreateConfig,
     aiOptions?: StatsigAIOptions,
   );
   constructor(
-    statsigInstanceConfig: StatsigInstanceConfig,
+    statsigInstanceConfig: StatsigAttachConfig,
     aiOptions?: StatsigAIOptions,
   );
 
