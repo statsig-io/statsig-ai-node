@@ -1,5 +1,10 @@
 export * from '@statsig/statsig-node-core';
-import { StatsigAIInstance } from './StatsigAI';
+import {
+  StatsigAIInstance,
+  StatsigCreateConfig,
+  StatsigAttachConfig,
+  StatsigSourceConfig,
+} from './StatsigAI';
 import { Prompt } from './prompts/Prompt';
 import { PromptVersion } from './prompts/PromptVersion';
 import { AgentVersion } from './agents/AgentVersion';
@@ -7,7 +12,7 @@ import { AIEvalResult } from './AIEvalResult';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
-import { Statsig } from '@statsig/statsig-node-core';
+import { Statsig, StatsigOptions } from '@statsig/statsig-node-core';
 import { StatsigAIOptions } from './StatsigAIOptions';
 
 export {
@@ -37,9 +42,18 @@ export class StatsigAI extends StatsigAIInstance {
   }
 
   public static newShared(
-    sdkKey: string,
-    statsig: Statsig,
-    options?: StatsigAIOptions,
+    statsigInitConfig: StatsigCreateConfig,
+    aiOptions?: StatsigAIOptions,
+  ): StatsigAI;
+
+  public static newShared(
+    statsigInstanceConfig: StatsigAttachConfig,
+    aiOptions?: StatsigAIOptions,
+  ): StatsigAI;
+
+  public static newShared(
+    statsigSource: StatsigSourceConfig,
+    aiOptions?: StatsigAIOptions,
   ): StatsigAI {
     if (StatsigAI.hasShared()) {
       console.warn(
@@ -49,11 +63,17 @@ export class StatsigAI extends StatsigAIInstance {
       return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-      sdkKey,
-      statsig,
-      options,
-    );
+    if ('statsig' in statsigSource) {
+      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
+        statsigSource,
+        aiOptions,
+      );
+    } else {
+      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
+        statsigSource,
+        aiOptions,
+      );
+    }
 
     return StatsigAI._sharedAIStatsigInstance;
   }
@@ -63,10 +83,7 @@ export class StatsigAI extends StatsigAIInstance {
   }
 
   private static _createErrorStatsigAIInstance(): StatsigAI {
-    const dummyInstance = new StatsigAI(
-      'INVALID-KEY',
-      new Statsig('INVALID-KEY'),
-    );
+    const dummyInstance = new StatsigAI({ sdkKey: 'INVALID-KEY' });
     dummyInstance.shutdown();
     return dummyInstance;
   }

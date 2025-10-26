@@ -6,7 +6,6 @@ import fs from 'fs';
 import path from 'path';
 
 describe('Prompt Targeting', () => {
-  let statsig: Statsig;
   let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
@@ -34,9 +33,6 @@ describe('Prompt Targeting', () => {
   });
 
   afterEach(async () => {
-    if (statsig) {
-      await statsig.shutdown();
-    }
     if (statsigAI) {
       await statsigAI.shutdown();
     }
@@ -47,9 +43,10 @@ describe('Prompt Targeting', () => {
   });
 
   it('should support targeting rules', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
     await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
@@ -73,9 +70,10 @@ describe('Prompt Targeting', () => {
   });
 
   it('should support nested targeting rules', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
     await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user-1',

@@ -6,13 +6,12 @@ import fs from 'fs';
 import OpenAI from 'openai';
 import path from 'path';
 import { StatsigAI } from '..';
-import { Statsig, StatsigOptions } from '@statsig/statsig-node-core';
+import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../wrappers/openai';
 import { OpenAILike } from '../wrappers/openai-configs';
 import { MockScrapi } from './MockScrapi';
 
 describe('OpenAI Wrapper with Statsig Tracing', () => {
-  let statsig: Statsig;
   let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
   let openai: Partial<OpenAI>;
@@ -58,9 +57,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   });
 
   afterEach(async () => {
-    if (statsig) {
-      await statsig.shutdown();
-    }
     if (statsigAI) {
       await statsigAI.shutdown();
     }
@@ -74,11 +70,15 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   });
 
   it('should send traces when calling chat.completions.create', async () => {
-    statsig = new Statsig('secret-test-key', options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI('secret-test-key', statsig, {
-      enableDefaultOtel: true,
-    });
+    statsigAI = new StatsigAI(
+      {
+        sdkKey: 'secret-test-key',
+        statsigOptions: options,
+      },
+      {
+        enableDefaultOtel: true,
+      },
+    );
     await statsigAI.initialize();
 
     const response = await wrappedOpenAI.chat.completions.create({
