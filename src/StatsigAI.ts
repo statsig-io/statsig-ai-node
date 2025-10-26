@@ -18,6 +18,7 @@ export interface StatsigInitConfig {
 }
 
 export interface StatsigInstanceConfig {
+  sdkKey: string;
   statsig: Statsig;
 }
 
@@ -41,20 +42,16 @@ export class StatsigAIInstance {
     statsigSource: StatsigSourceConfig,
     aiOptions?: StatsigAIOptions,
   ) {
-    if ('sdkKey' in statsigSource) {
+    if ('statsig' in statsigSource) {
+      const { sdkKey, statsig } = statsigSource;
+      this._statsig = statsig;
+      this._ownsStatsigInstance = false;
+      this._setUpOtel(sdkKey, aiOptions);
+    } else {
       const { sdkKey, statsigOptions } = statsigSource;
       this._statsig = new Statsig(sdkKey, statsigOptions);
       this._ownsStatsigInstance = true;
       this._setUpOtel(sdkKey, aiOptions);
-    } else {
-      const { statsig } = statsigSource;
-      this._statsig = statsig;
-      this._ownsStatsigInstance = false;
-      this._setUpOtel(
-        // @ts-expect-error - added in next core release
-        statsig.getContext().sdkKey ?? '',
-        aiOptions,
-      );
     }
   }
 

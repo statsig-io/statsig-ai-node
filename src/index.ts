@@ -63,7 +63,7 @@ export class StatsigAI extends StatsigAIInstance {
       return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    if ('sdkKey' in statsigSource) {
+    if ('statsig' in statsigSource) {
       StatsigAI._sharedAIStatsigInstance = new StatsigAI(
         statsigSource,
         aiOptions,
