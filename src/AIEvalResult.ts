@@ -1,8 +1,9 @@
-import { PromptVersion } from './prompts/PromptVersion';
+type AIEvalDataBase = {
+  sessionId?: string;
+};
 
-// probably could have a better name for this
-export interface AIEvalResult {
-  score: number;
-  session_id: string;
-  version: PromptVersion;
-}
+export type AIEvalData = AIEvalDataBase &
+  (
+    | { usePrimaryGrader: boolean; graderName?: string }
+    | { usePrimaryGrader?: boolean; graderName: string }
+  );
