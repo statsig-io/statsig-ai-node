@@ -24,7 +24,13 @@ jobs:
             // 1. Validate format matches regex
             if (!regex.test(title)) {
               core.setFailed(
-                `❌ Invalid PR title format.\nExpected format: <type>(<optional:scope>): <description>\nExample: feat(auth): add login button`
+                [
+                  '❌ Invalid PR title format.',
+                  'Expected format: <type>: <description>',
+                  'Examples:',
+                  '  • feat: add get prompt api',
+                  '  • fix(napi): resolve bug'
+                ].join('\n')
               );
               return;
             }
