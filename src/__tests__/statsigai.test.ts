@@ -1,5 +1,9 @@
 import { MockScrapi } from './MockScrapi';
-import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
+import {
+  Statsig,
+  StatsigOptions,
+  StatsigUser,
+} from '@statsig/statsig-node-core';
 import { StatsigAI } from '..';
 import fs from 'fs';
 import path from 'path';
@@ -128,6 +132,83 @@ describe('StatsigAI', () => {
       await statsigAI.initialize();
       const user = new StatsigUser({ userID: 'test-user' });
       expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
+    });
+  });
+
+  describe('StatsigAI with Statsig instance', () => {
+    it('should be able to use statsig instance methods', async () => {
+      const statsig = new Statsig(sdkKey, options);
+      await statsig.initialize();
+      statsigAI = new StatsigAI({ sdkKey: sdkKey, statsig: statsig });
+      await statsigAI.initialize();
+      const user = new StatsigUser({ userID: 'test-user' });
+      expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
+    });
+
+    it('should NOT call initialize/flush/shutdown on attached statsig instance', async () => {
+      const statsig = new Statsig(sdkKey, options);
+
+      const initializeSpy = jest.spyOn(statsig, 'initialize');
+      const flushSpy = jest.spyOn(statsig, 'flushEvents');
+      const shutdownSpy = jest.spyOn(statsig, 'shutdown');
+
+      statsigAI = new StatsigAI({ sdkKey: sdkKey, statsig: statsig });
+
+      await statsigAI.initialize();
+      expect(initializeSpy).not.toHaveBeenCalled();
+
+      await statsigAI.flushEvents();
+      expect(flushSpy).not.toHaveBeenCalled();
+
+      await statsigAI.shutdown();
+      expect(shutdownSpy).not.toHaveBeenCalled();
+
+      initializeSpy.mockRestore();
+      flushSpy.mockRestore();
+      shutdownSpy.mockRestore();
+    });
+  });
+
+  describe('StatsigAI with SDK key and options (creation mode)', () => {
+    it('should call initialize/flush/shutdown on owned statsig instance', async () => {
+      statsigAI = new StatsigAI({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
+
+      const statsig = statsigAI.getStatsig();
+
+      const initializeSpy = jest.spyOn(statsig, 'initialize');
+      const flushSpy = jest.spyOn(statsig, 'flushEvents');
+      const shutdownSpy = jest.spyOn(statsig, 'shutdown');
+
+      await statsigAI.initialize();
+      expect(initializeSpy).toHaveBeenCalled();
+
+      await statsigAI.flushEvents();
+      expect(flushSpy).toHaveBeenCalled();
+
+      await statsigAI.shutdown();
+      expect(shutdownSpy).toHaveBeenCalled();
+
+      initializeSpy.mockRestore();
+      flushSpy.mockRestore();
+      shutdownSpy.mockRestore();
+    });
+
+    it('should properly initialize and use owned statsig instance', async () => {
+      statsigAI = new StatsigAI({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
+
+      await statsigAI.initialize();
+      const user = new StatsigUser({ userID: 'test-user' });
+
+      expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
+      const prompt = statsigAI.getPrompt(user, 'test_prompt');
+      expect(prompt).toBeDefined();
+      expect(prompt.getName()).toBe('test_prompt');
     });
   });
 });
