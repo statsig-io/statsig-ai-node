@@ -1,4 +1,8 @@
-import { Statsig, StatsigUser } from '@statsig/statsig-node-core';
+import {
+  Statsig,
+  StatsigOptions,
+  StatsigUser,
+} from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import { AIEvalResult } from './AIEvalResult';
@@ -8,24 +12,70 @@ import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigAIOptions } from './StatsigAIOptions';
 import { IOtelClient } from './otel/IOtelClient';
 
+export interface StatsigInitConfig {
+  sdkKey: string;
+  statsigOptions?: StatsigOptions;
+}
+
+export interface StatsigInstanceConfig {
+  statsig: Statsig;
+}
+
+export type StatsigSourceConfig = StatsigInitConfig | StatsigInstanceConfig;
+
 export class StatsigAIInstance {
   private _otel: IOtelClient | null = null;
   private _statsig: Statsig;
+  private _ownsStatsigInstance: boolean = false;
 
-  constructor(sdkKey: string, statsig: Statsig, options?: StatsigAIOptions) {
-    this._statsig = statsig;
-    this._setUpOtel(sdkKey, options);
+  constructor(
+    statsigInitConfig: StatsigInitConfig,
+    aiOptions?: StatsigAIOptions,
+  );
+  constructor(
+    statsigInstanceConfig: StatsigInstanceConfig,
+    aiOptions?: StatsigAIOptions,
+  );
+
+  constructor(
+    statsigSource: StatsigSourceConfig,
+    aiOptions?: StatsigAIOptions,
+  ) {
+    if ('sdkKey' in statsigSource) {
+      const { sdkKey, statsigOptions } = statsigSource;
+      this._statsig = new Statsig(sdkKey, statsigOptions);
+      this._ownsStatsigInstance = true;
+      this._setUpOtel(sdkKey, aiOptions);
+    } else {
+      const { statsig } = statsigSource;
+      this._statsig = statsig;
+      this._ownsStatsigInstance = false;
+      this._setUpOtel(
+        // @ts-expect-error - added in next core release
+        statsig.getContext().sdkKey ?? '',
+        aiOptions,
+      );
+    }
   }
 
   async initialize(): Promise<void> {
+    if (this._ownsStatsigInstance) {
+      await this._statsig.initialize();
+    }
     await this._otel?.initialize();
   }
 
   async flushEvents(): Promise<void> {
+    if (this._ownsStatsigInstance) {
+      await this._statsig.flushEvents();
+    }
     await this._otel?.flush();
   }
 
   async shutdown(): Promise<void> {
+    if (this._ownsStatsigInstance) {
+      await this._statsig.shutdown();
+    }
     await this._otel?.shutdown();
   }
 

@@ -1,15 +1,10 @@
 import { MockScrapi } from './MockScrapi';
-import {
-  Statsig,
-  StatsigOptions,
-  StatsigUser,
-} from '@statsig/statsig-node-core';
+import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
 import { StatsigAI } from '..';
 import fs from 'fs';
 import path from 'path';
 
 describe('StatsigAI', () => {
-  let statsig: Statsig;
   let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
@@ -42,9 +37,6 @@ describe('StatsigAI', () => {
       await statsigAI.shutdown();
     }
     StatsigAI.removeSharedInstance();
-    if (statsig) {
-      await statsig.shutdown();
-    }
   });
 
   afterAll(() => {
@@ -53,9 +45,10 @@ describe('StatsigAI', () => {
 
   describe('global singleton', () => {
     it('should create a new shared instance', async () => {
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-      const sharedInstance = StatsigAI.newShared(sdkKey, statsig);
+      const sharedInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
 
       expect(sharedInstance).toBeDefined();
       expect(sharedInstance).toBeInstanceOf(StatsigAI);
@@ -63,10 +56,10 @@ describe('StatsigAI', () => {
     });
 
     it('should return the same instance when calling shared()', async () => {
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-
-      const sharedInstance = StatsigAI.newShared(sdkKey, statsig);
+      const sharedInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
       const retrievedInstance = StatsigAI.shared();
 
       expect(retrievedInstance).toBe(sharedInstance);
@@ -74,11 +67,14 @@ describe('StatsigAI', () => {
 
     it('should warn and return error instance when called multiple times', async () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-
-      const firstInstance = StatsigAI.newShared(sdkKey, statsig);
-      const secondInstance = StatsigAI.newShared(sdkKey, statsig);
+      const firstInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
+      const secondInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Shared instance has been created'),
@@ -90,16 +86,19 @@ describe('StatsigAI', () => {
     });
 
     it('should allow creating new shared instance after removal', async () => {
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-
-      const firstInstance = StatsigAI.newShared(sdkKey, statsig);
+      const firstInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
       await firstInstance.shutdown();
       StatsigAI.removeSharedInstance();
 
       expect(StatsigAI.hasShared()).toBe(false);
 
-      const secondInstance = StatsigAI.newShared(sdkKey, statsig);
+      const secondInstance = StatsigAI.newShared({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
 
       expect(secondInstance).toBeDefined();
       expect(secondInstance).not.toBe(firstInstance);
@@ -109,12 +108,11 @@ describe('StatsigAI', () => {
 
   describe('StatsigAI instance', () => {
     it('should be able to use statsig ai instance methods', async () => {
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-
-      statsigAI = new StatsigAI(sdkKey, statsig);
+      statsigAI = new StatsigAI({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
       await statsigAI.initialize();
-
       const user = new StatsigUser({ userID: 'test-user' });
       const prompt = statsigAI.getPrompt(user, 'test_prompt');
 
@@ -123,14 +121,12 @@ describe('StatsigAI', () => {
     });
 
     it('should be able to use statsig instance methods', async () => {
-      statsig = new Statsig(sdkKey, options);
-      await statsig.initialize();
-
-      statsigAI = new StatsigAI(sdkKey, statsig);
+      statsigAI = new StatsigAI({
+        sdkKey: sdkKey,
+        statsigOptions: options,
+      });
       await statsigAI.initialize();
-
       const user = new StatsigUser({ userID: 'test-user' });
-      expect(statsigAI.getStatsig()).toBe(statsig);
       expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
     });
   });

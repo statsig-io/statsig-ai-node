@@ -6,7 +6,6 @@ import fs from 'fs';
 import path from 'path';
 
 describe('Prompt Serving', () => {
-  let statsig: Statsig;
   let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
   let options: StatsigOptions;
@@ -34,9 +33,6 @@ describe('Prompt Serving', () => {
   });
 
   afterEach(async () => {
-    if (statsig) {
-      await statsig.shutdown();
-    }
     if (statsigAI) {
       await statsigAI.shutdown();
     }
@@ -47,9 +43,10 @@ describe('Prompt Serving', () => {
   });
 
   it('should get the correct config for a prompt', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
     await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
@@ -60,9 +57,10 @@ describe('Prompt Serving', () => {
   });
 
   it('should get the correct live prompt version', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
     await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
@@ -86,9 +84,10 @@ describe('Prompt Serving', () => {
   });
 
   it('should get the correct candidate prompt versions', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
     await statsigAI.initialize();
     const user = new StatsigUser({
       userID: 'test-user',
