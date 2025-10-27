@@ -4,6 +4,6 @@ type AIEvalDataBase = {
 
 export type AIEvalData = AIEvalDataBase &
   (
-    | { usePrimaryGrader: boolean; graderName?: string }
-    | { usePrimaryGrader?: boolean; graderName: string }
+    | { usePrimaryGrader: true; graderName?: never }
+    | { usePrimaryGrader?: never; graderName: string }
   );
