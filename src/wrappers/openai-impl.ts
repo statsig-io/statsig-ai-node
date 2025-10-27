@@ -8,6 +8,7 @@ import {
   trace,
 } from '@opentelemetry/api';
 import { OpenAILike, StatsigOpenAIProxyConfig } from './openai-configs';
+import { OtelSingleton } from '../otel/singleton';
 
 type APIPromise<T> = Promise<T> & {
   withResponse?: () => Promise<{ data: T; response: Response }>;
@@ -23,7 +24,9 @@ export class StatsigOpenAIProxy {
 
   constructor(openai: OpenAILike, config: StatsigOpenAIProxyConfig) {
     this.openai = openai;
-    this.tracer = trace.getTracer('statsig-openai-proxy');
+    this.tracer = OtelSingleton.getInstance()
+      .getTracerProvider()
+      .getTracer('statsig-openai-proxy');
     this._redact = config.redact;
     this._ensureStreamUsage = config.ensureStreamUsage ?? true;
     this._maxJSONChars = config.maxJSONChars ?? 40_000;

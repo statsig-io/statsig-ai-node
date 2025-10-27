@@ -13,6 +13,9 @@ import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
 import { StatsigAIOptions } from './StatsigAIOptions';
+import { initializeTracing } from './otel/otel-v2';
+import { StatsigSpanProcessor } from './otel/processor';
+import { StatsigOTLPTraceExporter } from './otel/exporter';
 
 export {
   Prompt,
@@ -22,6 +25,9 @@ export {
   AgentConfig,
   PromptEvaluationOptions,
   wrapOpenAI,
+  initializeTracing,
+  StatsigSpanProcessor,
+  StatsigOTLPTraceExporter,
 };
 export class StatsigAI extends StatsigAIInstance {
   private static _sharedAIStatsigInstance: StatsigAI | null = null;
