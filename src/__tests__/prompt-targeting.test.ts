@@ -66,7 +66,7 @@ describe('Prompt Targeting', () => {
     expect(liveVersion.getWorkflowBody()).toBeDefined();
     expect(liveVersion.getEvalModel()).toBe('gpt-5');
     expect(liveVersion.getType()).toBe('Live');
-    expect(liveVersion.getAIConfigName()).toBe('test-prompt-2');
+    expect(liveVersion.getPromptName()).toBe('test-prompt-2');
   });
 
   it('should support nested targeting rules', async () => {
@@ -93,7 +93,7 @@ describe('Prompt Targeting', () => {
     expect(liveVersion.getWorkflowBody()).toBeDefined();
     expect(liveVersion.getEvalModel()).toBe('gpt-5');
     expect(liveVersion.getType()).toBe('Live');
-    expect(liveVersion.getAIConfigName()).toBe('test-prompt-3');
+    expect(liveVersion.getPromptName()).toBe('test-prompt-3');
   });
 
   it('should handle circular targeting rules gracefully without crashing', async () => {
@@ -123,7 +123,7 @@ describe('Prompt Targeting', () => {
     expect(liveVersion.getMaxTokens()).toBe(500);
     expect(liveVersion.getProvider()).toBe('openai');
     expect(liveVersion.getModel()).toBe('gpt-4');
-    expect(liveVersion.getAIConfigName()).toBe('test-prompt-circular-a');
+    expect(liveVersion.getPromptName()).toBe('test-prompt-circular-a');
 
     // Verify that a warning was logged
     expect(warnSpy).toHaveBeenCalledWith(

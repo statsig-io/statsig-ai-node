@@ -23,7 +23,7 @@ export function makePrompt(
   );
 }
 export class Prompt {
-  public name: string;
+  public readonly name: string;
   private _liveConfig: PromptVersion;
   private _candidateConfigs: PromptVersion[];
   constructor(

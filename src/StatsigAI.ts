@@ -160,10 +160,10 @@ export class StatsigAIInstance {
     user: StatsigUser,
     promptVersion: PromptVersion,
     score: number,
+    graderName: string,
     evalData: AIEvalGradeData,
   ): void {
-    const { sessionId, graderName, usePrimaryGrader } = evalData;
-    let usePrimaryGraderValue: string = usePrimaryGrader ? 'true' : 'false';
+    const { sessionId } = evalData;
     if (score < 0 || score > 1) {
       console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
@@ -171,32 +171,17 @@ export class StatsigAIInstance {
       return;
     }
 
-    if (!usePrimaryGrader && !graderName) {
-      console.warn(
-        `[Statsig] AI grading result use_primary_grader is false and grader_name is not provided, at least one of use_primary_grader or grader_name must be provided, defaulting to use_primary_grader`,
-      );
-      usePrimaryGraderValue = 'true';
-    }
-
-    if (usePrimaryGrader && graderName) {
-      console.warn(
-        `[Statsig] AI grading result use_primary_grader is true and grader_name is also provided, grader_name will take precedence over use_primary_grader`,
-      );
-      usePrimaryGraderValue = 'false';
-    }
-
     this._statsig.logEvent(
       user,
       'statsig::eval_result',
-      promptVersion.getAIConfigName(),
+      promptVersion.getPromptName(),
       {
         score: score.toString(),
         session_id: sessionId ?? '',
         version_name: promptVersion.getName() ?? '',
         version_id: promptVersion.getID() ?? '',
-        grader_name: graderName ?? '',
-        use_primary_grader: usePrimaryGraderValue,
-        ai_config_name: promptVersion.getAIConfigName() ?? '',
+        grader_id: graderName ?? '',
+        ai_config_name: promptVersion.getPromptName() ?? '',
       },
     );
   }
