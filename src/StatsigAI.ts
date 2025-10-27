@@ -156,7 +156,7 @@ export class StatsigAIInstance {
     );
   }
 
-  logAIGradingResult(
+  logEvalGrade(
     user: StatsigUser,
     promptVersion: PromptVersion,
     score: number,
@@ -169,6 +169,13 @@ export class StatsigAIInstance {
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
       );
       return;
+    }
+
+    if (!usePrimaryGrader && !graderName) {
+      console.warn(
+        `[Statsig] AI grading result use_primary_grader is false and grader_name is not provided, at least one of use_primary_grader or grader_name must be provided, defaulting to use_primary_grader`,
+      );
+      usePrimaryGraderValue = 'true';
     }
 
     if (usePrimaryGrader && graderName) {

@@ -5,5 +5,5 @@ type AIGradingDataBase = {
 export type AiGradingData = AIGradingDataBase &
   (
     | { usePrimaryGrader: true; graderName?: never }
-    | { usePrimaryGrader?: never; graderName: string }
+    | { usePrimaryGrader?: never | false; graderName: string }
   );
