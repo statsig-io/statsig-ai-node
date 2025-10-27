@@ -10,8 +10,7 @@ export type PromptMessage = {
 };
 
 export class PromptVersion {
-  public name: string;
-
+  public readonly name: string;
   private _promptVariant: DynamicConfig;
   private _id: string;
   private _temperature: number;
@@ -28,21 +27,21 @@ export class PromptVersion {
 
   constructor(promptVariant: DynamicConfig) {
     this.name = promptVariant.getValue('name', '');
-
-    this._promptVariant = promptVariant;
-    this._temperature = promptVariant.getValue('temperature', 0);
-    this._maxTokens = promptVariant.getValue('maxTokens', 0);
-    this._topP = promptVariant.getValue('topP', 0);
-    this._frequencyPenalty = promptVariant.getValue('frequencyPenalty', 0);
-    this._presencePenalty = promptVariant.getValue('presencePenalty', 0);
-    this._provider = promptVariant.getValue('provider', '');
-    this._model = promptVariant.getValue('model', '');
-    this._workflowBody = promptVariant.getValue('workflowBody', {});
-    this._evalModel = promptVariant.getValue('evalModel', '');
     this._type = promptVariant.getValue('type', '');
     this._aiConfigName = promptVariant.getValue('aiConfigName', '');
     const parts = promptVariant.name.split(':');
     this._id = parts.length > 1 ? parts[1] : '';
+
+    this._promptVariant = promptVariant;
+    this._temperature = promptVariant.getValue('temperature', null);
+    this._maxTokens = promptVariant.getValue('maxTokens', null);
+    this._topP = promptVariant.getValue('topP', null);
+    this._frequencyPenalty = promptVariant.getValue('frequencyPenalty', null);
+    this._presencePenalty = promptVariant.getValue('presencePenalty', null);
+    this._provider = promptVariant.getValue('provider', null);
+    this._model = promptVariant.getValue('model', null);
+    this._workflowBody = promptVariant.getValue('workflowBody', null);
+    this._evalModel = promptVariant.getValue('evalModel', null);
   }
 
   getName(): string {
@@ -53,48 +52,50 @@ export class PromptVersion {
     return this._id;
   }
 
-  getTemperature(): number {
-    return this._temperature;
-  }
-
-  getMaxTokens(): number {
-    return this._maxTokens;
-  }
-
-  getTopP(): number {
-    return this._topP;
-  }
-
-  getFrequencyPenalty(): number {
-    return this._frequencyPenalty;
-  }
-
-  getPresencePenalty(): number {
-    return this._presencePenalty;
-  }
-
-  getProvider(): string {
-    return this._provider;
-  }
-
-  getModel(): string {
-    return this._model;
-  }
-
-  getWorkflowBody(): Record<string, any> {
-    return this._workflowBody;
-  }
-
-  getEvalModel(): string {
-    return this._evalModel;
-  }
-
   getType(): string {
     return this._type;
   }
 
-  getAIConfigName(): string {
+  getPromptName(): string {
     return this._aiConfigName;
+  }
+
+  getTemperature(options?: { fallback: number }): number {
+    return this._temperature ?? options?.fallback ?? 0;
+  }
+
+  getMaxTokens(options?: { fallback: number }): number {
+    return this._maxTokens ?? options?.fallback ?? 0;
+  }
+
+  getTopP(options?: { fallback: number }): number {
+    return this._topP ?? options?.fallback ?? 0;
+  }
+
+  getFrequencyPenalty(options?: { fallback: number }): number {
+    return this._frequencyPenalty ?? options?.fallback ?? 0;
+  }
+
+  getPresencePenalty(options?: { fallback: number }): number {
+    return this._presencePenalty ?? options?.fallback ?? 0;
+  }
+
+  getProvider(options?: { fallback: string }): string {
+    return this._provider || options?.fallback || '';
+  }
+
+  getModel(options?: { fallback: string }): string {
+    return this._model || options?.fallback || '';
+  }
+
+  getWorkflowBody(options?: {
+    fallback: Record<string, any>;
+  }): Record<string, any> {
+    return this._workflowBody ?? options?.fallback ?? {};
+  }
+
+  getEvalModel(options?: { fallback: string }): string {
+    return this._evalModel || options?.fallback || '';
   }
 
   getValue(

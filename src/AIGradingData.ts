@@ -1,9 +1,3 @@
-type AlEvalGradeDataBase = {
+export type AIEvalGradeData = {
   sessionId?: string;
 };
-
-export type AIEvalGradeData = AlEvalGradeDataBase &
-  (
-    | { usePrimaryGrader: true; graderName?: never }
-    | { usePrimaryGrader?: never | false; graderName: string }
-  );

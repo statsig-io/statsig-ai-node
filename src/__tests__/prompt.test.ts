@@ -80,7 +80,7 @@ describe('Prompt Serving', () => {
     expect(liveVersion.getWorkflowBody()).toBeDefined();
     expect(liveVersion.getEvalModel()).toBe('gpt-4o-mini');
     expect(liveVersion.getType()).toBe('Live');
-    expect(liveVersion.getAIConfigName()).toBe('test_prompt');
+    expect(liveVersion.getPromptName()).toBe('test_prompt');
   });
 
   it('should get the correct candidate prompt versions', async () => {
@@ -102,5 +102,70 @@ describe('Prompt Serving', () => {
 
     expect(candidateVersions[1].getID()).toBe('7CKLvQvOwjj2vjx12gFO0Z');
     expect(candidateVersions[1].getName()).toBe('Version 3');
+  });
+
+  it('should not use fallback values when prompt version properties are defined', async () => {
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
+    await statsigAI.initialize();
+    const user = new StatsigUser({
+      userID: 'test-user',
+    });
+    const prompt = statsigAI.getPrompt(user, 'test_prompt');
+    const liveVersion = prompt.getLive();
+
+    expect(liveVersion.getID()).toBe('6KGzeo8TR9JTL7CZl7vccd');
+    expect(liveVersion.getName()).toBe('Version 1');
+    expect(liveVersion.getType()).toBe('Live');
+    expect(liveVersion.getPromptName()).toBe('test_prompt');
+    expect(liveVersion.getTemperature({ fallback: 0.5 })).toBe(1);
+    expect(liveVersion.getMaxTokens({ fallback: 500 })).toBe(1000);
+    expect(liveVersion.getTopP({ fallback: 0.5 })).toBe(1);
+    expect(liveVersion.getFrequencyPenalty({ fallback: 0.5 })).toBe(0);
+    expect(liveVersion.getPresencePenalty({ fallback: 0.5 })).toBe(0);
+    expect(liveVersion.getProvider({ fallback: 'fallback-provider' })).toBe(
+      'openai',
+    );
+    expect(liveVersion.getModel({ fallback: 'fallback-model' })).toBe('gpt-5');
+    expect(
+      liveVersion.getWorkflowBody({
+        fallback: { fallback: true },
+      }),
+    ).toEqual({});
+    expect(liveVersion.getEvalModel({ fallback: 'fallback-eval-model' })).toBe(
+      'gpt-4o-mini',
+    );
+  });
+
+  it('should return fallback values when prompt version properties are undefined', async () => {
+    statsigAI = new StatsigAI({
+      sdkKey: sdkKey,
+      statsigOptions: options,
+    });
+    await statsigAI.initialize();
+    const user = new StatsigUser({
+      userID: 'test-user',
+    });
+    const prompt = statsigAI.getPrompt(user, 'non-existent-prompt');
+    const liveVersion = prompt.getLive();
+
+    expect(liveVersion.getName()).toBe('');
+    expect(liveVersion.getID()).toBe('');
+    expect(liveVersion.getType()).toBe('');
+    expect(liveVersion.getPromptName()).toBe('');
+    expect(liveVersion.getTemperature({ fallback: 0.7 })).toBe(0.7);
+    expect(liveVersion.getMaxTokens({ fallback: 2000 })).toBe(2000);
+    expect(liveVersion.getTopP({ fallback: 0.9 })).toBe(0.9);
+    expect(liveVersion.getFrequencyPenalty({ fallback: 0.3 })).toBe(0.3);
+    expect(liveVersion.getPresencePenalty({ fallback: 0.4 })).toBe(0.4);
+    expect(liveVersion.getProvider({ fallback: 'anthropic' })).toBe(
+      'anthropic',
+    );
+    expect(liveVersion.getModel({ fallback: 'claude-3' })).toBe('claude-3');
+    expect(liveVersion.getEvalModel({ fallback: 'gpt-4o-mini' })).toBe(
+      'gpt-4o-mini',
+    );
   });
 });
