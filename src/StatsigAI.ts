@@ -178,10 +178,10 @@ export class StatsigAIInstance {
       {
         score: score.toString(),
         session_id: sessionId ?? '',
-        version_name: promptVersion.getName() ?? '',
-        version_id: promptVersion.getID() ?? '',
-        grader_id: graderName ?? '',
-        ai_config_name: promptVersion.getPromptName() ?? '',
+        version_name: promptVersion.getName(),
+        version_id: promptVersion.getID(),
+        grader_id: graderName,
+        ai_config_name: promptVersion.getPromptName(),
       },
     );
   }
