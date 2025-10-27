@@ -95,4 +95,48 @@ describe('Prompt Targeting', () => {
     expect(liveVersion.getType()).toBe('Live');
     expect(liveVersion.getAIConfigName()).toBe('test-prompt-3');
   });
+
+  it('should handle circular targeting rules gracefully without crashing', async () => {
+    statsigAI = new StatsigAI({ sdkKey: sdkKey, statsigOptions: options });
+    await statsigAI.initialize();
+
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const user = new StatsigUser({
+      userID: 'test-user-circular',
+    });
+
+    // This should not crash despite circular targeting rules
+    // circular-a -> circular-b -> circular-a (circular reference)
+    const prompt = statsigAI.getPrompt(user, 'test-prompt-circular-a');
+
+    // Should return a valid prompt object
+    expect(prompt).toBeDefined();
+    expect(prompt.getLive).toBeDefined();
+
+    const liveVersion = prompt.getLive();
+
+    // Should fall back to the base prompt when circular reference is detected
+    expect(liveVersion).toBeDefined();
+    expect(liveVersion.getName()).toBe('Circular A Version');
+    expect(liveVersion.getTemperature()).toBe(1);
+    expect(liveVersion.getMaxTokens()).toBe(500);
+    expect(liveVersion.getProvider()).toBe('openai');
+    expect(liveVersion.getModel()).toBe('gpt-4');
+    expect(liveVersion.getAIConfigName()).toBe('test-prompt-circular-a');
+
+    // Verify that a warning was logged
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[Statsig] Max targeting depth'),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('test-prompt-circular-a'),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Possible circular reference'),
+    );
+
+    // Clean up spy
+    warnSpy.mockRestore();
+  });
 });
