@@ -229,6 +229,70 @@
       "entity": "dynamic_config",
       "version": 4
     },
+    "prompt:circular-a-version": {
+      "type": "dynamic_config",
+      "salt": "circular-a-version-salt",
+      "enabled": true,
+      "defaultValue": {
+        "prompts": [
+          {
+            "content": "Circular A!",
+            "role": "system"
+          }
+        ],
+        "name": "Circular A Version",
+        "temperature": 1,
+        "maxTokens": 500,
+        "topP": 1,
+        "frequencyPenalty": 0,
+        "presencePenalty": 0,
+        "provider": "openai",
+        "model": "gpt-4",
+        "workflowBody": {
+          "type": "JSON",
+          "value": "{}"
+        },
+        "evalModel": "gpt-5",
+        "type": "Live",
+        "aiConfigName": "test-prompt-circular-a"
+      },
+      "rules": [],
+      "idType": "userID",
+      "entity": "dynamic_config",
+      "version": 1
+    },
+    "prompt:circular-b-version": {
+      "type": "dynamic_config",
+      "salt": "circular-b-version-salt",
+      "enabled": true,
+      "defaultValue": {
+        "prompts": [
+          {
+            "content": "Circular B!",
+            "role": "system"
+          }
+        ],
+        "name": "Circular B Version",
+        "temperature": 2,
+        "maxTokens": 600,
+        "topP": 1,
+        "frequencyPenalty": 0,
+        "presencePenalty": 0,
+        "provider": "openai",
+        "model": "gpt-4",
+        "workflowBody": {
+          "type": "JSON",
+          "value": "{}"
+        },
+        "evalModel": "gpt-5",
+        "type": "Live",
+        "aiConfigName": "test-prompt-circular-b"
+      },
+      "rules": [],
+      "idType": "userID",
+      "entity": "dynamic_config",
+      "version": 1
+    },
     "prompt_targeting_rules:test-prompt-1": {
       "type": "dynamic_config",
       "salt": "48ec031d-6ee9-48dd-8c04-cf4a77c29d95",
@@ -276,6 +340,54 @@
       "idType": "userID",
       "entity": "dynamic_config",
       "version": 2
+    },
+    "prompt_targeting_rules:test-prompt-circular-a": {
+      "type": "dynamic_config",
+      "salt": "circular-a-salt",
+      "enabled": true,
+      "defaultValue": {
+        "target": "prompt:test-prompt-circular-a"
+      },
+      "rules": [
+        {
+          "name": "circular-rule-a",
+          "passPercentage": 100,
+          "conditions": ["1828919350"],
+          "returnValue": {
+            "target": "prompt:test-prompt-circular-b"
+          },
+          "id": "circular-rule-a",
+          "salt": "circular-a-rule-salt",
+          "idType": "userID"
+        }
+      ],
+      "idType": "userID",
+      "entity": "dynamic_config",
+      "version": 1
+    },
+    "prompt_targeting_rules:test-prompt-circular-b": {
+      "type": "dynamic_config",
+      "salt": "circular-b-salt",
+      "enabled": true,
+      "defaultValue": {
+        "target": "prompt:test-prompt-circular-b"
+      },
+      "rules": [
+        {
+          "name": "circular-rule-b",
+          "passPercentage": 100,
+          "conditions": ["1828919350"],
+          "returnValue": {
+            "target": "prompt:test-prompt-circular-a"
+          },
+          "id": "circular-rule-b",
+          "salt": "circular-b-rule-salt",
+          "idType": "userID"
+        }
+      ],
+      "idType": "userID",
+      "entity": "dynamic_config",
+      "version": 1
     }
   },
   "feature_gates": {
@@ -417,6 +529,30 @@
       "idType": "userID",
       "entity": "layer",
       "version": 4
+    },
+    "test-prompt-circular-a": {
+      "type": "dynamic_config",
+      "salt": "circular-a-layer-salt",
+      "enabled": true,
+      "defaultValue": {
+        "live": "prompt:circular-a-version"
+      },
+      "rules": [],
+      "idType": "userID",
+      "entity": "layer",
+      "version": 1
+    },
+    "test-prompt-circular-b": {
+      "type": "dynamic_config",
+      "salt": "circular-b-layer-salt",
+      "enabled": true,
+      "defaultValue": {
+        "live": "prompt:circular-b-version"
+      },
+      "rules": [],
+      "idType": "userID",
+      "entity": "layer",
+      "version": 1
     }
   },
   "has_updates": true,
@@ -557,6 +693,46 @@
       },
       "targetAppIDs": [],
       "version": 2
+    },
+    "prompt:test-prompt-circular-a": {
+      "parameters": {
+        "live": {
+          "name": "live",
+          "param_type": "object",
+          "ref_type": "layer",
+          "layer_name": "test-prompt-circular-a",
+          "param_name": "live"
+        },
+        "prompt_targeting_rules": {
+          "name": "prompt_targeting_rules",
+          "param_type": "object",
+          "ref_type": "dynamic_config",
+          "config_name": "prompt_targeting_rules:test-prompt-circular-a",
+          "param_name": "target"
+        }
+      },
+      "targetAppIDs": [],
+      "version": 1
+    },
+    "prompt:test-prompt-circular-b": {
+      "parameters": {
+        "live": {
+          "name": "live",
+          "param_type": "object",
+          "ref_type": "layer",
+          "layer_name": "test-prompt-circular-b",
+          "param_name": "live"
+        },
+        "prompt_targeting_rules": {
+          "name": "prompt_targeting_rules",
+          "param_type": "object",
+          "ref_type": "dynamic_config",
+          "config_name": "prompt_targeting_rules:test-prompt-circular-b",
+          "param_name": "target"
+        }
+      },
+      "targetAppIDs": [],
+      "version": 1
     }
   },
   "session_replay_info": {
