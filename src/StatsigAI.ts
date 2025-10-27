@@ -5,7 +5,7 @@ import {
 } from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
-import { AIEvalData } from './AIEvalResult';
+import { AiGradingData } from './AIGradingData';
 import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
@@ -160,14 +160,22 @@ export class StatsigAIInstance {
     user: StatsigUser,
     promptVersion: PromptVersion,
     score: number,
-    evalData: AIEvalData,
+    evalData: AiGradingData,
   ): void {
     const { sessionId, graderName, usePrimaryGrader } = evalData;
+    let usePrimaryGraderValue: string = usePrimaryGrader ? 'true' : 'false';
     if (score < 0 || score > 1) {
       console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
       );
       return;
+    }
+
+    if (usePrimaryGrader && graderName) {
+      console.warn(
+        `[Statsig] AI grading result use_primary_grader is true and grader_name is also provided, grader_name will take precedence over use_primary_grader`,
+      );
+      usePrimaryGraderValue = 'false';
     }
 
     this._statsig.logEvent(
@@ -180,7 +188,7 @@ export class StatsigAIInstance {
         version_name: promptVersion.getName() ?? '',
         version_id: promptVersion.getID() ?? '',
         grader_name: graderName ?? '',
-        use_primary_grader: usePrimaryGrader ? 'true' : 'false',
+        use_primary_grader: usePrimaryGraderValue,
         ai_config_name: promptVersion.getAIConfigName() ?? '',
       },
     );

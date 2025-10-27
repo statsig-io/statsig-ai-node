@@ -1,8 +1,8 @@
-type AIEvalDataBase = {
+type AIGradingDataBase = {
   sessionId?: string;
 };
 
-export type AIEvalData = AIEvalDataBase &
+export type AiGradingData = AIGradingDataBase &
   (
     | { usePrimaryGrader: true; graderName?: never }
     | { usePrimaryGrader?: never; graderName: string }
