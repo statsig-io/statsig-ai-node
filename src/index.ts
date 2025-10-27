@@ -16,6 +16,7 @@ import { StatsigAIOptions } from './StatsigAIOptions';
 import { initializeTracing } from './otel/otel-v2';
 import { StatsigSpanProcessor } from './otel/processor';
 import { StatsigOTLPTraceExporter } from './otel/exporter';
+import { withStatsigUserContext } from './otel/user-context';
 
 export {
   Prompt,
@@ -26,6 +27,7 @@ export {
   PromptEvaluationOptions,
   wrapOpenAI,
   initializeTracing,
+  withStatsigUserContext,
   StatsigSpanProcessor,
   StatsigOTLPTraceExporter,
 };

@@ -8,7 +8,22 @@ import {
   trace,
 } from '@opentelemetry/api';
 import { OpenAILike, StatsigOpenAIProxyConfig } from './openai-configs';
+import {
+  STATSIG_ATTR_CUSTOM_IDS,
+  STATSIG_ATTR_LLM_PROMPT_NAME,
+  STATSIG_ATTR_LLM_PROMPT_VERSION,
+  STATSIG_ATTR_SPAN_LLM_ROOT,
+  STATSIG_ATTR_SPAN_TYPE,
+  STATSIG_ATTR_USER_ID,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+  STATSIG_SPAN_LLM_ROOT_VALUE,
+  StatsigSpanType,
+} from '../otel/conventions';
 import { OtelSingleton } from '../otel/singleton';
+import { getUserFromContext } from '../otel/user-context';
+
+const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
 type APIPromise<T> = Promise<T> & {
   withResponse?: () => Promise<{ data: T; response: Response }>;
@@ -414,15 +429,47 @@ export class StatsigOpenAIProxy {
     inputJSONKey?: string,
     inputJSON?: any,
   ) {
-    const span = this.tracer.startSpan(spanName, {
-      kind: SpanKind.CLIENT,
-      attributes: {
-        'gen_ai.system': 'openai',
-        'gen_ai.operation.name': operationName,
-        ...(this._customAttributes ?? {}),
-        ...(baseAttrs ?? {}),
+    let ctx = context.active();
+    const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
+    const statsigAttrs: Record<string, AttributeValue> = {
+      [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
+    };
+    if (
+      typeof maybeRootSpan === 'undefined' ||
+      (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
+    ) {
+      ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
+      statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
+    }
+
+    const maybeContextPrompt = ctx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT);
+    const maybeContextPromptVersion = ctx.getValue(
+      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+    );
+    if (maybeContextPrompt && typeof maybeContextPrompt === 'string') {
+      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_NAME] = maybeContextPrompt;
+    }
+    if (
+      maybeContextPromptVersion &&
+      typeof maybeContextPromptVersion === 'string'
+    ) {
+      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_VERSION] = maybeContextPromptVersion;
+    }
+
+    const span = this.tracer.startSpan(
+      sanitizeSpanName(spanName),
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'gen_ai.system': 'openai',
+          'gen_ai.operation.name': operationName,
+          ...(this._customAttributes ?? {}),
+          ...(baseAttrs ?? {}),
+          ...statsigAttrs,
+        },
       },
-    });
+      ctx,
+    );
     if (inputJSONKey && inputJSON !== undefined) {
       setJSON(span, inputJSONKey, inputJSON, this._maxJSONChars);
     }
