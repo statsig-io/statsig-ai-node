@@ -5,7 +5,7 @@ import {
 } from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
-import { AiGradingData } from './AIGradingData';
+import { AIEvalGradeData } from './AIGradingData';
 import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
@@ -160,7 +160,7 @@ export class StatsigAIInstance {
     user: StatsigUser,
     promptVersion: PromptVersion,
     score: number,
-    evalData: AiGradingData,
+    evalData: AIEvalGradeData,
   ): void {
     const { sessionId, graderName, usePrimaryGrader } = evalData;
     let usePrimaryGraderValue: string = usePrimaryGrader ? 'true' : 'false';

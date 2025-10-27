@@ -8,7 +8,7 @@ import {
 import { Prompt } from './prompts/Prompt';
 import { PromptVersion } from './prompts/PromptVersion';
 import { AgentVersion } from './agents/AgentVersion';
-import { AiGradingData } from './AIGradingData';
+import { AIEvalGradeData } from './AIGradingData';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
@@ -18,7 +18,7 @@ export {
   Prompt,
   PromptVersion,
   AgentVersion,
-  AiGradingData,
+  AIEvalGradeData as AiGradingData,
   AgentConfig,
   PromptEvaluationOptions,
   wrapOpenAI,
