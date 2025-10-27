@@ -18,7 +18,7 @@ export {
   Prompt,
   PromptVersion,
   AgentVersion,
-  AIEvalGradeData as AiGradingData,
+  AIEvalGradeData,
   AgentConfig,
   PromptEvaluationOptions,
   wrapOpenAI,
