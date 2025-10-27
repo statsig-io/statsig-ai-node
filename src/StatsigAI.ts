@@ -5,12 +5,13 @@ import {
 } from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
-import { AIEvalResult } from './AIEvalResult';
+import { AIEvalGradeData } from './AIGradingData';
 import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { StatsigAIOptions } from './StatsigAIOptions';
 import { IOtelClient } from './otel/IOtelClient';
+import { PromptVersion } from './prompts/PromptVersion';
 
 export interface StatsigCreateConfig {
   sdkKey: string;
@@ -155,12 +156,14 @@ export class StatsigAIInstance {
     );
   }
 
-  logEvalResult(
+  logEvalGrade(
     user: StatsigUser,
-    graderName: string,
-    evalResult: AIEvalResult,
+    promptVersion: PromptVersion,
+    score: number,
+    evalData: AIEvalGradeData,
   ): void {
-    const { version, score, session_id } = evalResult;
+    const { sessionId, graderName, usePrimaryGrader } = evalData;
+    let usePrimaryGraderValue: string = usePrimaryGrader ? 'true' : 'false';
     if (score < 0 || score > 1) {
       console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
@@ -168,17 +171,32 @@ export class StatsigAIInstance {
       return;
     }
 
+    if (!usePrimaryGrader && !graderName) {
+      console.warn(
+        `[Statsig] AI grading result use_primary_grader is false and grader_name is not provided, at least one of use_primary_grader or grader_name must be provided, defaulting to use_primary_grader`,
+      );
+      usePrimaryGraderValue = 'true';
+    }
+
+    if (usePrimaryGrader && graderName) {
+      console.warn(
+        `[Statsig] AI grading result use_primary_grader is true and grader_name is also provided, grader_name will take precedence over use_primary_grader`,
+      );
+      usePrimaryGraderValue = 'false';
+    }
+
     this._statsig.logEvent(
       user,
       'statsig::eval_result',
-      version.getAIConfigName(),
+      promptVersion.getAIConfigName(),
       {
         score: score.toString(),
-        session_id: session_id,
-        version_name: version.getName() ?? '',
-        version_id: version.getID() ?? '',
+        session_id: sessionId ?? '',
+        version_name: promptVersion.getName() ?? '',
+        version_id: promptVersion.getID() ?? '',
         grader_name: graderName ?? '',
-        ai_config_name: version.getAIConfigName() ?? '',
+        use_primary_grader: usePrimaryGraderValue,
+        ai_config_name: promptVersion.getAIConfigName() ?? '',
       },
     );
   }

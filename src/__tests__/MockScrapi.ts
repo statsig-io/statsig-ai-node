@@ -100,6 +100,16 @@ export class MockScrapi {
     return this.requests.filter((req) => req.path.startsWith('/otlp'));
   }
 
+  getLoggedEvents() {
+    return this.requests
+      .filter((req) => req.path.startsWith('/v1/log_event'))
+      .flatMap((req) => req.body.events || []);
+  }
+
+  clearRequests() {
+    this.requests = [];
+  }
+
   mock(path: string, response: string, options?: MockOptions) {
     this.mocks[path] = {
       response,

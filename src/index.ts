@@ -8,18 +8,17 @@ import {
 import { Prompt } from './prompts/Prompt';
 import { PromptVersion } from './prompts/PromptVersion';
 import { AgentVersion } from './agents/AgentVersion';
-import { AIEvalResult } from './AIEvalResult';
+import { AIEvalGradeData } from './AIGradingData';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
-import { Statsig, StatsigOptions } from '@statsig/statsig-node-core';
 import { StatsigAIOptions } from './StatsigAIOptions';
 
 export {
   Prompt,
   PromptVersion,
   AgentVersion,
-  AIEvalResult,
+  AIEvalGradeData as AiGradingData,
   AgentConfig,
   PromptEvaluationOptions,
   wrapOpenAI,
