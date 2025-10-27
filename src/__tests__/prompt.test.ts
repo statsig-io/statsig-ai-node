@@ -104,7 +104,7 @@ describe('Prompt Serving', () => {
     expect(candidateVersions[1].getName()).toBe('Version 3');
   });
 
-  it('should use fallback values when prompt version properties are undefined', async () => {
+  it('should not use fallback values when prompt version properties are defined', async () => {
     statsigAI = new StatsigAI({
       sdkKey: sdkKey,
       statsigOptions: options,
@@ -139,7 +139,7 @@ describe('Prompt Serving', () => {
     );
   });
 
-  it('should return fallback values when prompt version properties are missing', async () => {
+  it('should return fallback values when prompt version properties are undefined', async () => {
     statsigAI = new StatsigAI({
       sdkKey: sdkKey,
       statsigOptions: options,
