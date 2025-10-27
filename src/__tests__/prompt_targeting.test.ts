@@ -97,12 +97,9 @@ describe('Prompt Targeting', () => {
   });
 
   it('should handle circular targeting rules gracefully without crashing', async () => {
-    statsig = new Statsig(sdkKey, options);
-    await statsig.initialize();
-    statsigAI = new StatsigAI(sdkKey, statsig);
+    statsigAI = new StatsigAI({ sdkKey: sdkKey, statsigOptions: options });
     await statsigAI.initialize();
 
-    // Mock console.warn to capture the warning
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     const user = new StatsigUser({
