@@ -3,7 +3,6 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { trace } from '@opentelemetry/api';
 import { IOtelClient } from './IOtelClient';
 
 export const createExporterOptions = (endpoint: string, sdkKey: string) => ({

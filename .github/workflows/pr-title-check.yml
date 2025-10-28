@@ -19,7 +19,7 @@ jobs:
             }
 
             const regex = /^[a-zA-Z]+(\([a-zA-Z]+\))?: .+/;
-            const allowedPrefixes = ['feat', 'fix', 'refac', 'chore', 'tool'];
+            const allowedPrefixes = ['feat', 'fix', 'refac', 'chore', 'tool', '[release]'];
 
             // 1. Validate format matches regex
             if (!regex.test(title)) {
