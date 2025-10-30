@@ -31,15 +31,6 @@ export class StatsigAIInstance {
   private _ownsStatsigInstance: boolean = false;
 
   constructor(
-    statsigInitConfig: StatsigCreateConfig,
-    aiOptions?: StatsigAIOptions,
-  );
-  constructor(
-    statsigInstanceConfig: StatsigAttachConfig,
-    aiOptions?: StatsigAIOptions,
-  );
-
-  constructor(
     statsigSource: StatsigSourceConfig,
     aiOptions?: StatsigAIOptions,
   ) {

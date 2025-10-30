@@ -25,6 +25,7 @@ export {
 };
 export class StatsigAI extends StatsigAIInstance {
   private static _sharedAIStatsigInstance: StatsigAI | null = null;
+  private static _sharedProxy: StatsigAI | null = null;
 
   public static shared(): StatsigAI {
     if (!StatsigAI.hasShared()) {
@@ -62,17 +63,10 @@ export class StatsigAI extends StatsigAIInstance {
       return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    if ('statsig' in statsigSource) {
-      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-        statsigSource,
-        aiOptions,
-      );
-    } else {
-      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-        statsigSource,
-        aiOptions,
-      );
-    }
+    StatsigAI._sharedAIStatsigInstance = new StatsigAI(
+      statsigSource,
+      aiOptions,
+    );
 
     return StatsigAI._sharedAIStatsigInstance;
   }
