@@ -13,14 +13,16 @@ import { StatsigAIOptions } from './StatsigAIOptions';
 import { IOtelClient } from './otel/IOtelClient';
 import { PromptVersion } from './prompts/PromptVersion';
 
-export interface StatsigCreateConfig {
+interface baseStatsigAIConfig {
   sdkKey: string;
+}
+
+export interface StatsigCreateConfig extends baseStatsigAIConfig {
   statsigOptions?: StatsigOptions;
   statsig?: never;
 }
 
-export interface StatsigAttachConfig {
-  sdkKey: string;
+export interface StatsigAttachConfig extends baseStatsigAIConfig {
   statsig: Statsig;
   statsigOptions?: never;
 }
