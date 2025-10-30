@@ -62,17 +62,10 @@ export class StatsigAI extends StatsigAIInstance {
       return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    if ('statsig' in statsigSource) {
-      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-        statsigSource,
-        aiOptions,
-      );
-    } else {
-      StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-        statsigSource,
-        aiOptions,
-      );
-    }
+    StatsigAI._sharedAIStatsigInstance = new StatsigAI(
+      statsigSource,
+      aiOptions,
+    );
 
     return StatsigAI._sharedAIStatsigInstance;
   }

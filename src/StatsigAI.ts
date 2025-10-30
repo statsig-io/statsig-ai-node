@@ -13,14 +13,18 @@ import { StatsigAIOptions } from './StatsigAIOptions';
 import { IOtelClient } from './otel/IOtelClient';
 import { PromptVersion } from './prompts/PromptVersion';
 
-export interface StatsigCreateConfig {
+interface baseStatsigAIConfig {
   sdkKey: string;
-  statsigOptions?: StatsigOptions;
 }
 
-export interface StatsigAttachConfig {
-  sdkKey: string;
+export interface StatsigCreateConfig extends baseStatsigAIConfig {
+  statsigOptions?: StatsigOptions;
+  statsig?: never;
+}
+
+export interface StatsigAttachConfig extends baseStatsigAIConfig {
   statsig: Statsig;
+  statsigOptions?: never;
 }
 
 export type StatsigSourceConfig = StatsigCreateConfig | StatsigAttachConfig;
@@ -31,19 +35,10 @@ export class StatsigAIInstance {
   private _ownsStatsigInstance: boolean = false;
 
   constructor(
-    statsigInitConfig: StatsigCreateConfig,
-    aiOptions?: StatsigAIOptions,
-  );
-  constructor(
-    statsigInstanceConfig: StatsigAttachConfig,
-    aiOptions?: StatsigAIOptions,
-  );
-
-  constructor(
     statsigSource: StatsigSourceConfig,
     aiOptions?: StatsigAIOptions,
   ) {
-    if ('statsig' in statsigSource) {
+    if ('statsig' in statsigSource && statsigSource.statsig) {
       const { sdkKey, statsig } = statsigSource;
       this._statsig = statsig;
       this._ownsStatsigInstance = false;
