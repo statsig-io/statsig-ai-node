@@ -25,7 +25,6 @@ export {
 };
 export class StatsigAI extends StatsigAIInstance {
   private static _sharedAIStatsigInstance: StatsigAI | null = null;
-  private static _sharedProxy: StatsigAI | null = null;
 
   public static shared(): StatsigAI {
     if (!StatsigAI.hasShared()) {
