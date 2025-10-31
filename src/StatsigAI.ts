@@ -11,16 +11,13 @@ import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { PromptVersion } from './prompts/PromptVersion';
 import { OtelSingleton } from './otel/singleton';
 
-interface baseStatsigAIConfig {
+export interface StatsigCreateConfig {
   sdkKey: string;
-}
-
-export interface StatsigCreateConfig extends baseStatsigAIConfig {
   statsigOptions?: StatsigOptions;
   statsig?: never;
 }
 
-export interface StatsigAttachConfig extends baseStatsigAIConfig {
+export interface StatsigAttachConfig {
   statsig: Statsig;
   statsigOptions?: never;
 }
