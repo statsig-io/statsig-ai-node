@@ -139,7 +139,7 @@ describe('StatsigAI', () => {
     it('should be able to use statsig instance methods', async () => {
       const statsig = new Statsig(sdkKey, options);
       await statsig.initialize();
-      statsigAI = new StatsigAI({ sdkKey: sdkKey, statsig: statsig });
+      statsigAI = new StatsigAI({ statsig: statsig });
       await statsigAI.initialize();
       const user = new StatsigUser({ userID: 'test-user' });
       expect(statsigAI.getStatsig().checkGate(user, 'test_public')).toBe(true);
@@ -152,7 +152,7 @@ describe('StatsigAI', () => {
       const flushSpy = jest.spyOn(statsig, 'flushEvents');
       const shutdownSpy = jest.spyOn(statsig, 'shutdown');
 
-      statsigAI = new StatsigAI({ sdkKey: sdkKey, statsig: statsig });
+      statsigAI = new StatsigAI({ statsig: statsig });
 
       await statsigAI.initialize();
       expect(initializeSpy).not.toHaveBeenCalled();
