@@ -288,13 +288,13 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     ).toBeGreaterThan(0);
 
     // Span metadata also appears on event metadata
-    expect(genAIEventMetadata['span.name']).toBeDefined();
+    expect(genAIEventMetadata['span.name']).toBe(
+      'openai.chat.completions.create',
+    );
     expect(genAIEventMetadata['span.span_id']).toBeDefined();
     expect(genAIEventMetadata['span.trace_id']).toBeDefined();
     expect(genAIEventMetadata['span.status_code']).toBeDefined();
-    expect(genAIEventMetadata['span_name']).toBe(
-      'openai.chat.completions.create',
-    );
+
     // Event value is the sanitized span name
     expect(genAIEvent.value).toBe('openai.chat.completions.create');
   });
