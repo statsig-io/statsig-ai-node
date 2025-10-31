@@ -6,12 +6,10 @@ import {
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import { AIEvalGradeData } from './AIGradingData';
-import { Otel } from './otel/otel';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
-import { StatsigAIOptions } from './StatsigAIOptions';
-import { IOtelClient } from './otel/IOtelClient';
 import { PromptVersion } from './prompts/PromptVersion';
+import { OtelSingleton } from './otel/singleton';
 
 interface baseStatsigAIConfig {
   sdkKey: string;
@@ -30,24 +28,18 @@ export interface StatsigAttachConfig extends baseStatsigAIConfig {
 export type StatsigSourceConfig = StatsigCreateConfig | StatsigAttachConfig;
 
 export class StatsigAIInstance {
-  private _otel: IOtelClient | null = null;
   private _statsig: Statsig;
   private _ownsStatsigInstance: boolean = false;
 
-  constructor(
-    statsigSource: StatsigSourceConfig,
-    aiOptions?: StatsigAIOptions,
-  ) {
+  constructor(statsigSource: StatsigSourceConfig) {
     if ('statsig' in statsigSource && statsigSource.statsig) {
-      const { sdkKey, statsig } = statsigSource;
+      const { statsig } = statsigSource;
       this._statsig = statsig;
       this._ownsStatsigInstance = false;
-      this._setUpOtel(sdkKey, aiOptions);
     } else {
       const { sdkKey, statsigOptions } = statsigSource;
       this._statsig = new Statsig(sdkKey, statsigOptions);
       this._ownsStatsigInstance = true;
-      this._setUpOtel(sdkKey, aiOptions);
     }
   }
 
@@ -55,21 +47,19 @@ export class StatsigAIInstance {
     if (this._ownsStatsigInstance) {
       await this._statsig.initialize();
     }
-    await this._otel?.initialize();
   }
 
   async flushEvents(): Promise<void> {
     if (this._ownsStatsigInstance) {
       await this._statsig.flushEvents();
     }
-    await this._otel?.flush();
+    await OtelSingleton.flushInstance();
   }
 
   async shutdown(): Promise<void> {
     if (this._ownsStatsigInstance) {
       await this._statsig.shutdown();
     }
-    await this._otel?.shutdown();
   }
 
   getStatsig(): Statsig {
@@ -178,18 +168,6 @@ export class StatsigAIInstance {
         grader_id: graderName,
         ai_config_name: promptVersion.getPromptName(),
       },
-    );
-  }
-
-  private _setUpOtel(sdkKey: string, options?: StatsigAIOptions): void {
-    if (!options?.enableDefaultOtel) {
-      return;
-    }
-
-    this._otel = new Otel(
-      sdkKey,
-      options.statsigTracingConfig?.serviceName ?? '',
-      options.statsigTracingConfig?.enableAutoInstrumentation ?? false,
     );
   }
 }

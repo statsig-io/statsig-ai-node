@@ -1,4 +1,5 @@
 import { trace, type TracerProvider } from '@opentelemetry/api';
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 
 type InitializeOptions = {
   tracerProvider: TracerProvider;
@@ -35,6 +36,20 @@ export class OtelSingleton {
 
   public static getTracerProvider(): TracerProvider {
     return OtelSingleton.getInstance().getTracerProvider();
+  }
+
+  static async flushInstance(): Promise<void> {
+    const instance = OtelSingleton.getInstance();
+    // if we know for sure the type of tracerProvider, we can call forceFlush directly
+    if (instance.tracerProvider instanceof BasicTracerProvider) {
+      await instance.tracerProvider.forceFlush();
+    } else if (
+      // otherwise, we can check if the method exists
+      'forceFlush' in instance.tracerProvider &&
+      typeof instance.tracerProvider.forceFlush === 'function'
+    ) {
+      await instance.tracerProvider.forceFlush();
+    }
   }
 }
 

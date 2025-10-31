@@ -1,19 +1,20 @@
-import * as otelModule from '../otel/otel';
-
 import { DefaultMockResponses, MockOpenAI } from './MockOpenAI';
 
 import fs from 'fs';
 import OpenAI from 'openai';
 import path from 'path';
-import { StatsigAI } from '..';
+import { initializeTracing, StatsigAI } from '..';
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../wrappers/openai';
 import { OpenAILike } from '../wrappers/openai-configs';
 import { MockScrapi } from './MockScrapi';
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
+import { STATSIG_ATTR_SPAN_TYPE } from '../otel/conventions';
 
 describe('OpenAI Wrapper with Statsig Tracing', () => {
   let scrapi: MockScrapi;
   let options: StatsigOptions;
+  let provider: BasicTracerProvider;
 
   beforeAll(async () => {
     scrapi = await MockScrapi.create();
@@ -35,12 +36,16 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       method: 'POST',
     });
 
-    jest
-      .spyOn(otelModule, 'createExporterOptions')
-      .mockImplementation((endpoint: string, sdkKey: string) => ({
-        url: scrapi.getUrlForPath('/otlp' + endpoint),
-        headers: { 'statsig-api-key': sdkKey },
-      }));
+    const { provider: resultingProvider } = initializeTracing({
+      exporterOptions: {
+        dsn: scrapi.getUrlForPath('/otlp'),
+        sdkKey: 'secret-test-key',
+      },
+      serviceName: 'statsig-ai-test',
+      version: '1.0.0-test',
+      environment: 'test',
+    });
+    provider = resultingProvider;
     options = {
       specsUrl: scrapi.getUrlForPath('/v2/download_config_specs'),
       logEventUrl: scrapi.getUrlForPath('/v1/log_event'),
@@ -70,15 +75,10 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
 
   it('should send traces and events when calling chat.completions.create', async () => {
     const openai = new MockOpenAI();
-    StatsigAI.newShared(
-      {
-        sdkKey: 'secret-test-key',
-        statsigOptions: options,
-      },
-      {
-        enableDefaultOtel: true,
-      },
-    );
+    StatsigAI.newShared({
+      sdkKey: 'secret-test-key',
+      statsigOptions: options,
+    });
     await StatsigAI.shared().initialize();
     const wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
 
@@ -94,6 +94,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       DefaultMockResponses.chatCompletion.choices[0].message.content,
     );
 
+    await provider.forceFlush();
     await StatsigAI.shared().flushEvents();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -125,11 +126,10 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     const resourceAttrs = resourceSpan.resource.attributes;
     const resourceAttrKeys = resourceAttrs.map((attr: any) => attr.key);
 
-    // These are standard OpenTelemetry resource attributes
     const expectedResourceAttrs = [
       'service.name',
-      'process.runtime.name',
-      'process.runtime.version',
+      'service.version',
+      'environment',
     ];
 
     expectedResourceAttrs.forEach((attrName) => {
@@ -186,6 +186,10 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     );
 
     expect(genAIEventMetadata['gen_ai.request.model']).toEqual('gpt-4');
+
+    expect(spanAttrMap[STATSIG_ATTR_SPAN_TYPE]).toBeDefined();
+    expect(spanAttrMap[STATSIG_ATTR_SPAN_TYPE].stringValue).toBe('gen_ai');
+
     expect(spanAttrMap['gen_ai.request.model']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.model'].stringValue).toBe('gpt-4');
 
@@ -320,15 +324,10 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     consoleWarnSpy.mockRestore();
     expect(scrapi.getLoggedEvents().length).toBe(0);
 
-    StatsigAI.newShared(
-      {
-        sdkKey: 'secret-test-key',
-        statsigOptions: options,
-      },
-      {
-        enableDefaultOtel: true,
-      },
-    );
+    StatsigAI.newShared({
+      sdkKey: 'secret-test-key',
+      statsigOptions: options,
+    });
     await StatsigAI.shared().initialize();
     await wrappedOpenAI.chat.completions.create({
       model: 'gpt-4',
