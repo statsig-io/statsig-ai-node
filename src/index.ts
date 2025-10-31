@@ -12,7 +12,7 @@ import { AIEvalGradeData } from './AIGradingData';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
-import { initializeTracing } from './otel/otel-v2';
+import { initializeTracing } from './otel/otel';
 import { StatsigSpanProcessor } from './otel/processor';
 import { StatsigOTLPTraceExporter } from './otel/exporter';
 import { withStatsigUserContext } from './otel/user-context';

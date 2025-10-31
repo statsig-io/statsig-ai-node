@@ -46,8 +46,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       environment: 'test',
     });
     provider = resultingProvider;
-    // openai = new MockOpenAI();
-    // wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
     options = {
       specsUrl: scrapi.getUrlForPath('/v2/download_config_specs'),
       logEventUrl: scrapi.getUrlForPath('/v1/log_event'),

@@ -9,6 +9,7 @@ import { AIEvalGradeData } from './AIGradingData';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { PromptVersion } from './prompts/PromptVersion';
+import { OtelSingleton } from './otel/singleton';
 
 interface baseStatsigAIConfig {
   sdkKey: string;
@@ -52,6 +53,7 @@ export class StatsigAIInstance {
     if (this._ownsStatsigInstance) {
       await this._statsig.flushEvents();
     }
+    await OtelSingleton.flushInstance();
   }
 
   async shutdown(): Promise<void> {

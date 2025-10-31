@@ -4,7 +4,7 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
-import { initializeTracing } from '../otel/otel-v2';
+import { initializeTracing } from '../otel/otel';
 import { OtelSingleton } from '../otel/singleton';
 
 describe('OTEL initialize', () => {
