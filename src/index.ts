@@ -12,7 +12,6 @@ import { AIEvalGradeData } from './AIGradingData';
 import { AgentConfig } from './agents/AgentConfig';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { wrapOpenAI } from './wrappers/openai';
-import { StatsigAIOptions } from './StatsigAIOptions';
 import { initializeTracing } from './otel/otel-v2';
 import { StatsigSpanProcessor } from './otel/processor';
 import { StatsigOTLPTraceExporter } from './otel/exporter';
@@ -48,20 +47,13 @@ export class StatsigAI extends StatsigAIInstance {
     return StatsigAI._sharedAIStatsigInstance !== null;
   }
 
-  public static newShared(
-    statsigInitConfig: StatsigCreateConfig,
-    aiOptions?: StatsigAIOptions,
-  ): StatsigAI;
+  public static newShared(statsigInitConfig: StatsigCreateConfig): StatsigAI;
 
   public static newShared(
     statsigInstanceConfig: StatsigAttachConfig,
-    aiOptions?: StatsigAIOptions,
   ): StatsigAI;
 
-  public static newShared(
-    statsigSource: StatsigSourceConfig,
-    aiOptions?: StatsigAIOptions,
-  ): StatsigAI {
+  public static newShared(statsigSource: StatsigSourceConfig): StatsigAI {
     if (StatsigAI.hasShared()) {
       console.warn(
         '[Statsig] Shared instance has been created, call removeSharedInstance() if you want to create another one. ' +
@@ -70,10 +62,7 @@ export class StatsigAI extends StatsigAIInstance {
       return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    StatsigAI._sharedAIStatsigInstance = new StatsigAI(
-      statsigSource,
-      aiOptions,
-    );
+    StatsigAI._sharedAIStatsigInstance = new StatsigAI(statsigSource);
 
     return StatsigAI._sharedAIStatsigInstance;
   }
