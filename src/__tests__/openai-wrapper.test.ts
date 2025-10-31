@@ -12,10 +12,7 @@ import { OpenAILike } from '../wrappers/openai-configs';
 import { MockScrapi } from './MockScrapi';
 
 describe('OpenAI Wrapper with Statsig Tracing', () => {
-  let statsigAI: StatsigAI;
   let scrapi: MockScrapi;
-  let openai: Partial<OpenAI>;
-  let wrappedOpenAI: OpenAILike;
   let options: StatsigOptions;
 
   beforeAll(async () => {
@@ -38,8 +35,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       method: 'POST',
     });
 
-    openai = new MockOpenAI();
-    wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
     jest
       .spyOn(otelModule, 'createExporterOptions')
       .mockImplementation((endpoint: string, sdkKey: string) => ({
@@ -57,20 +52,25 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   });
 
   afterEach(async () => {
-    if (statsigAI) {
-      await statsigAI.shutdown();
+    scrapi.clearRequests();
+    if (StatsigAI.hasShared()) {
+      await StatsigAI.shared().shutdown();
+      StatsigAI.removeSharedInstance();
     }
   });
 
   it('should wrap OpenAI instance successfully', () => {
+    const openai = new MockOpenAI();
+    wrapOpenAI(openai as OpenAILike);
     expect(openai).toBeDefined();
     expect(openai.chat).toBeDefined();
     expect(openai.chat?.completions).toBeDefined();
     expect(openai.chat?.completions?.create).toBeDefined();
   });
 
-  it('should send traces when calling chat.completions.create', async () => {
-    statsigAI = new StatsigAI(
+  it('should send traces and events when calling chat.completions.create', async () => {
+    const openai = new MockOpenAI();
+    StatsigAI.newShared(
       {
         sdkKey: 'secret-test-key',
         statsigOptions: options,
@@ -79,7 +79,8 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
         enableDefaultOtel: true,
       },
     );
-    await statsigAI.initialize();
+    await StatsigAI.shared().initialize();
+    const wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
 
     const response = await wrappedOpenAI.chat.completions.create({
       model: 'gpt-4',
@@ -93,11 +94,19 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       DefaultMockResponses.chatCompletion.choices[0].message.content,
     );
 
-    await statsigAI.flushEvents();
+    await StatsigAI.shared().flushEvents();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const traceRequests = scrapi.getOtelRequests();
     expect(traceRequests.length).toBeGreaterThan(0);
+
+    const loggedEvents = scrapi.getLoggedEvents();
+    const genAiEvents = loggedEvents.filter(
+      (event) => event.eventName === 'statsig::gen_ai',
+    );
+    expect(genAiEvents.length).toBeGreaterThan(0);
+    const genAIEvent = genAiEvents[0];
+    const genAIEventMetadata = genAIEvent.metadata;
 
     const traceRequest = traceRequests[0];
     expect(traceRequest.body).toBeDefined();
@@ -163,71 +172,177 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       return acc;
     }, {});
 
-    // Required request attributes
+    // Required request attributes (present on both event metadata and span)
+    expect(genAIEventMetadata['gen_ai.system']).toEqual('openai');
     expect(spanAttrMap['gen_ai.system']).toBeDefined();
     expect(spanAttrMap['gen_ai.system'].stringValue).toBe('openai');
 
+    expect(genAIEventMetadata['gen_ai.operation.name']).toEqual(
+      'chat.completions.create',
+    );
     expect(spanAttrMap['gen_ai.operation.name']).toBeDefined();
     expect(spanAttrMap['gen_ai.operation.name'].stringValue).toBe(
       'chat.completions.create',
     );
 
+    expect(genAIEventMetadata['gen_ai.request.model']).toEqual('gpt-4');
     expect(spanAttrMap['gen_ai.request.model']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.model'].stringValue).toBe('gpt-4');
 
+    expect(genAIEventMetadata['gen_ai.request.temperature']).toEqual('0.7');
     expect(spanAttrMap['gen_ai.request.temperature']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.temperature'].doubleValue).toBe(0.7);
 
+    expect(genAIEventMetadata['gen_ai.request.max_tokens']).toEqual('100');
     expect(spanAttrMap['gen_ai.request.max_tokens']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.max_tokens'].intValue).toBe(100);
 
+    expect(genAIEventMetadata['gen_ai.request.stream']).toEqual('false');
     expect(spanAttrMap['gen_ai.request.stream']).toBeDefined();
     expect(spanAttrMap['gen_ai.request.stream'].boolValue).toBe(false);
 
+    expect(genAIEventMetadata['gen_ai.input']).toBeDefined();
     expect(spanAttrMap['gen_ai.input']).toBeDefined();
     expect(spanAttrMap['gen_ai.input'].stringValue).toBeDefined();
 
     // Required response attributes
+    expect(genAIEventMetadata['gen_ai.response.id']).toEqual(
+      DefaultMockResponses.chatCompletion.id,
+    );
     expect(spanAttrMap['gen_ai.response.id']).toBeDefined();
-    expect(spanAttrMap['gen_ai.response.id'].stringValue).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.id'].stringValue).toEqual(
+      DefaultMockResponses.chatCompletion.id,
+    );
 
+    expect(genAIEventMetadata['gen_ai.response.model']).toEqual(
+      DefaultMockResponses.chatCompletion.model,
+    );
     expect(spanAttrMap['gen_ai.response.model']).toBeDefined();
-    expect(spanAttrMap['gen_ai.response.model'].stringValue).toBe('gpt-4');
+    expect(spanAttrMap['gen_ai.response.model'].stringValue).toBe(
+      DefaultMockResponses.chatCompletion.model,
+    );
 
+    expect(genAIEventMetadata['gen_ai.response.created']).toEqual(
+      String(DefaultMockResponses.chatCompletion.created),
+    );
     expect(spanAttrMap['gen_ai.response.created']).toBeDefined();
-    expect(spanAttrMap['gen_ai.response.created'].intValue).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.created'].intValue).toBe(
+      DefaultMockResponses.chatCompletion.created,
+    );
 
+    expect(genAIEventMetadata['gen_ai.completion.choices_count']).toEqual(
+      String(DefaultMockResponses.chatCompletion.choices.length),
+    );
     expect(spanAttrMap['gen_ai.completion.choices_count']).toBeDefined();
-    expect(spanAttrMap['gen_ai.completion.choices_count'].intValue).toBe(1);
+    expect(spanAttrMap['gen_ai.completion.choices_count'].intValue).toBe(
+      DefaultMockResponses.chatCompletion.choices.length,
+    );
 
+    expect(genAIEventMetadata['gen_ai.response.finish_reason']).toEqual(
+      DefaultMockResponses.chatCompletion.choices[0].finish_reason,
+    );
     expect(spanAttrMap['gen_ai.response.finish_reason']).toBeDefined();
-    expect(
-      spanAttrMap['gen_ai.response.finish_reason'].stringValue,
-    ).toBeDefined();
+    expect(spanAttrMap['gen_ai.response.finish_reason'].stringValue).toEqual(
+      DefaultMockResponses.chatCompletion.choices[0].finish_reason,
+    );
 
+    expect(genAIEventMetadata['gen_ai.completion']).toEqual(
+      DefaultMockResponses.chatCompletion.choices[0].message.content,
+    );
     expect(spanAttrMap['gen_ai.completion']).toBeDefined();
-    expect(spanAttrMap['gen_ai.completion'].stringValue).toBeDefined();
+    expect(spanAttrMap['gen_ai.completion'].stringValue).toEqual(
+      DefaultMockResponses.chatCompletion.choices[0].message.content,
+    );
 
     // Required usage attributes
+    expect(genAIEventMetadata['gen_ai.usage.prompt_tokens']).toEqual(
+      String(DefaultMockResponses.chatCompletion.usage.prompt_tokens),
+    );
     expect(spanAttrMap['gen_ai.usage.prompt_tokens']).toBeDefined();
-    expect(spanAttrMap['gen_ai.usage.prompt_tokens'].intValue).toBeGreaterThan(
-      0,
+    expect(spanAttrMap['gen_ai.usage.prompt_tokens'].intValue).toBe(
+      DefaultMockResponses.chatCompletion.usage.prompt_tokens,
     );
 
+    expect(genAIEventMetadata['gen_ai.usage.completion_tokens']).toEqual(
+      String(DefaultMockResponses.chatCompletion.usage.completion_tokens),
+    );
     expect(spanAttrMap['gen_ai.usage.completion_tokens']).toBeDefined();
-    expect(
-      spanAttrMap['gen_ai.usage.completion_tokens'].intValue,
-    ).toBeGreaterThan(0);
-
-    expect(spanAttrMap['gen_ai.usage.total_tokens']).toBeDefined();
-    expect(spanAttrMap['gen_ai.usage.total_tokens'].intValue).toBeGreaterThan(
-      0,
+    expect(spanAttrMap['gen_ai.usage.completion_tokens'].intValue).toBe(
+      DefaultMockResponses.chatCompletion.usage.completion_tokens,
     );
 
-    // Required metrics attributes
+    expect(genAIEventMetadata['gen_ai.usage.total_tokens']).toEqual(
+      String(DefaultMockResponses.chatCompletion.usage.total_tokens),
+    );
+    expect(spanAttrMap['gen_ai.usage.total_tokens']).toBeDefined();
+    expect(spanAttrMap['gen_ai.usage.total_tokens'].intValue).toBe(
+      DefaultMockResponses.chatCompletion.usage.total_tokens,
+    );
+
+    expect(
+      parseInt(genAIEventMetadata['gen_ai.metrics.time_to_first_token_ms']),
+    ).toBeGreaterThan(0);
     expect(spanAttrMap['gen_ai.metrics.time_to_first_token_ms']).toBeDefined();
     expect(
       spanAttrMap['gen_ai.metrics.time_to_first_token_ms'].intValue,
-    ).toBeGreaterThanOrEqual(0);
+    ).toBeGreaterThan(0);
+
+    // Span metadata also appears on event metadata
+    expect(genAIEventMetadata['span.name']).toBeDefined();
+    expect(genAIEventMetadata['span.span_id']).toBeDefined();
+    expect(genAIEventMetadata['span.trace_id']).toBeDefined();
+    expect(genAIEventMetadata['span.status_code']).toBeDefined();
+    expect(genAIEventMetadata['span_name']).toBe(
+      'openai.chat.completions.create',
+    );
+    // Event value is the sanitized span name
+    expect(genAIEvent.value).toBe('openai.chat.completions.create');
+  });
+
+  it('sends events when global statsig is created after the wrapper is created', async () => {
+    StatsigAI.removeSharedInstance();
+    const openai = new MockOpenAI();
+    const wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
+    const consoleWarnSpy = jest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+    await wrappedOpenAI.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'Hello, world!' }],
+      temperature: 0.7,
+      max_tokens: 100,
+    });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '[Statsig] No shared global StatsigAI instance found. Call StatsigAI.newShared() before invoking OpenAI methods to capture Gen AI telemetry.',
+      ),
+    );
+    consoleWarnSpy.mockRestore();
+    expect(scrapi.getLoggedEvents().length).toBe(0);
+
+    StatsigAI.newShared(
+      {
+        sdkKey: 'secret-test-key',
+        statsigOptions: options,
+      },
+      {
+        enableDefaultOtel: true,
+      },
+    );
+    await StatsigAI.shared().initialize();
+    await wrappedOpenAI.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'Hello, world!' }],
+      temperature: 0.7,
+      max_tokens: 100,
+    });
+    await StatsigAI.shared().flushEvents();
+    const loggedEvents = scrapi.getLoggedEvents();
+    const genAiEvents = loggedEvents.filter(
+      (event) => event.eventName === 'statsig::gen_ai',
+    );
+    expect(genAiEvents.length).toBeGreaterThan(0);
+    const genAIEvent = genAiEvents[0];
+    expect(genAIEvent.value).toBe('openai.chat.completions.create');
   });
 });

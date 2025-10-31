@@ -1,26 +1,17 @@
 import {
   AttributeValue,
-  Span,
   SpanKind,
   SpanStatusCode,
   Tracer,
   context,
   trace,
 } from '@opentelemetry/api';
-import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
+import { SpanTelemetry } from './span-telemetry';
 import { OpenAILike, StatsigOpenAIProxyConfig } from './openai-configs';
 
 type APIPromise<T> = Promise<T> & {
   withResponse?: () => Promise<{ data: T; response: Response }>;
 };
-
-type MetadataValue = string;
-
-const PLACEHOLDER_STATSIG_USER = new StatsigUser({
-  userID: 'statsig-ai-openai-wrapper',
-});
-
-const LOG_EVENT_NAME = 'statsig::span';
 
 export class StatsigOpenAIProxy {
   public openai: OpenAILike;
@@ -142,9 +133,9 @@ export class StatsigOpenAIProxy {
             'gen_ai.completion.choices_count': data?.choices?.length,
             'gen_ai.response.finish_reason': first?.finish_reason,
             'gen_ai.completion': outText,
-            ...usageAttrs(data?.usage),
             'gen_ai.metrics.time_to_first_token_ms': Date.now() - t0,
           });
+          telemetry.setUsage(data?.usage);
 
           telemetry.setJSON(
             'gen_ai.input',
@@ -162,17 +153,13 @@ export class StatsigOpenAIProxy {
         postprocessStream: (telemetry, all) => {
           const { text, tool_calls, usage } = postprocessChatStream(all);
           if (text) {
-            telemetry.setJSON(
-              'gen_ai.output.messages_json',
-              [{ role: 'assistant', content: text }],
-            );
+            telemetry.setJSON('gen_ai.output.messages_json', [
+              { role: 'assistant', content: text },
+            ]);
             telemetry.setAttributes({ 'gen_ai.completion': text });
           }
           if (tool_calls) {
-            telemetry.setJSON(
-              'gen_ai.output.tool_calls_json',
-              tool_calls,
-            );
+            telemetry.setJSON('gen_ai.output.tool_calls_json', tool_calls);
           }
           telemetry.setUsage(usage);
         },
@@ -211,17 +198,14 @@ export class StatsigOpenAIProxy {
           telemetry.setAttributes({
             'gen_ai.completion': first?.text ?? '',
             'gen_ai.response.finish_reason': first?.finish_reason,
-            ...usageAttrs(data?.usage),
             'gen_ai.metrics.time_to_first_token_ms': Date.now() - t0,
           });
+          telemetry.setUsage(data?.usage);
 
           if (typeof params?.prompt === 'string') {
             telemetry.setAttributes({ 'gen_ai.prompt': params.prompt });
           } else if (Array.isArray(params?.prompt)) {
-            telemetry.setJSON(
-              'gen_ai.prompt_json',
-              params.prompt,
-            );
+            telemetry.setJSON('gen_ai.prompt_json', params.prompt);
           }
         },
         postprocessStream: (telemetry, all) => {
@@ -271,8 +255,8 @@ export class StatsigOpenAIProxy {
             'gen_ai.response.model': res?.model,
             'gen_ai.embeddings.count': res?.data?.length,
             'gen_ai.embeddings.dimension': res?.data?.[0]?.embedding?.length,
-            ...usageAttrs(res?.usage),
           });
+          telemetry.setUsage(res?.usage);
           telemetry.setStatus({ code: SpanStatusCode.OK });
           return res;
         } catch (e: any) {
@@ -342,9 +326,9 @@ export class StatsigOpenAIProxy {
             '';
           telemetry.setAttributes({
             'gen_ai.completion': text,
-            ...usageAttrs(data?.usage),
             'gen_ai.metrics.time_to_first_token_ms': Date.now() - t0,
           });
+          telemetry.setUsage(data?.usage);
           telemetry.setJSON(
             'gen_ai.input',
             this._redact?.(params?.input) ?? params?.input,
@@ -429,12 +413,7 @@ export class StatsigOpenAIProxy {
       attributes,
     });
 
-    const telemetry = new SpanTelemetry(
-      span,
-      spanName,
-      this._maxJSONChars,
-      (name, metadata) => this.logSpanEvent(name, metadata),
-    );
+    const telemetry = new SpanTelemetry(span, spanName, this._maxJSONChars);
 
     telemetry.setAttributes(attributes);
 
@@ -444,51 +423,6 @@ export class StatsigOpenAIProxy {
       telemetry.setJSON(inputJSONKey, inputJSON);
     }
     return telemetry;
-  }
-
-  private logSpanEvent(
-    spanName: string,
-    metadata: Record<string, MetadataValue>,
-  ): void {
-    const statsig = this.getStatsigInstanceForLogging();
-    if (!statsig) {
-      return;
-    }
-
-    try {
-      statsig.logEvent(
-        PLACEHOLDER_STATSIG_USER,
-        LOG_EVENT_NAME,
-        sanitizeSpanName(spanName),
-        metadata,
-      );
-    } catch (err: any) {
-      console.warn(
-        '[Statsig] Failed to log span event.',
-        err?.message ?? String(err),
-      );
-    }
-  }
-
-  private getStatsigInstanceForLogging(): Statsig | null {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const module = require('..');
-      const StatsigAI = module?.StatsigAI;
-      if (StatsigAI?.hasShared?.()) {
-        const statsigInstance = StatsigAI.shared();
-        if (typeof statsigInstance?.getStatsig === 'function') {
-          return statsigInstance.getStatsig();
-        }
-      }
-    } catch (err) {
-      console.warn(
-        '[Statsig] Unable to retrieve Statsig instance for span logging.',
-        err instanceof Error ? err.message : err,
-      );
-    }
-
-    return null;
   }
 
   private wrapMaybeStreamingCall(
@@ -609,8 +543,7 @@ export class StatsigOpenAIProxy {
               for await (const chunk of origIter()) {
                 if (first) {
                   telemetry.setAttributes({
-                    'gen_ai.metrics.time_to_first_token_ms':
-                      Date.now() - t0,
+                    'gen_ai.metrics.time_to_first_token_ms': Date.now() - t0,
                   });
                   first = false;
                 }
@@ -662,16 +595,6 @@ function proxifyNamespace(
   });
 }
 
-function usageAttrs(usage: any) {
-  return usage
-    ? {
-        'gen_ai.usage.prompt_tokens': usage?.prompt_tokens,
-        'gen_ai.usage.completion_tokens': usage?.completion_tokens,
-        'gen_ai.usage.total_tokens': usage?.total_tokens,
-      }
-    : {};
-}
-
 function postprocessChatStream(all: any[]) {
   let text = '';
   let tool_calls: any[] | undefined;
@@ -706,147 +629,4 @@ function postprocessChatStream(all: any[]) {
 
 function isAsyncIterable<T = any>(x: any): x is AsyncIterable<T> {
   return x && typeof x[Symbol.asyncIterator] === 'function';
-}
-
-function sanitizeSpanName(value: string, maxLength: number = 128): string {
-  if (!value) {
-    return 'unknown_span';
-  }
-
-  // Lowercase for consistency
-  let spanName = value.toLowerCase();
-
-  // Replace unsafe characters with underscores
-  spanName = spanName.replace(/[^a-z0-9._-]+/g, '_');
-
-  // Collapse multiple underscores
-  spanName = spanName.replace(/_+/g, '_');
-
-  // Trim leading/trailing underscores or dashes
-  spanName = spanName.replace(/^[_-]+|[_-]+$/g, '');
-
-  // Enforce max length
-  spanName = spanName.slice(0, maxLength);
-
-  return spanName || 'unknown_span';
-}
-
-class SpanTelemetry {
-  private readonly metadata: Record<string, MetadataValue> = {};
-  private ended = false;
-
-  constructor(
-    public readonly span: Span,
-    private readonly spanName: string,
-    private readonly maxJSONChars: number,
-    private readonly onEnd: (
-      spanName: string,
-      metadata: Record<string, MetadataValue>,
-    ) => void,
-  ) {
-    this.metadata['span.name'] = spanName;
-    this.metadata['span_name'] = sanitizeSpanName(spanName);
-    const ctx = span.spanContext();
-    this.metadata['span.trace_id'] = ctx.traceId;
-    this.metadata['span.span_id'] = ctx.spanId;
-  }
-
-  public setAttributes(kv: Record<string, AttributeValue | undefined>): void {
-    for (const [key, value] of Object.entries(kv)) {
-      if (value === undefined) {
-        continue;
-      }
-      this.span.setAttribute(key, value);
-      this.metadata[key] = attributeValueToMetadata(value);
-    }
-  }
-
-  public setJSON(key: string, value: any): void {
-    try {
-      const json = JSON.stringify(value ?? null);
-      const truncated =
-        json.length > this.maxJSONChars
-          ? json.slice(0, this.maxJSONChars) + '…(truncated)'
-          : json;
-      this.setAttributes({ [key]: truncated });
-      if (json.length > this.maxJSONChars) {
-        this.setAttributes({ [`${key}_truncated`]: true });
-        this.setAttributes({ [`${key}_len`]: json.length });
-      }
-    } catch {
-      this.setAttributes({ [key]: '[[unserializable]]' });
-    }
-  }
-
-  public setUsage(usage: any): void {
-    if (!usage) {
-      return;
-    }
-    this.setAttributes(usageAttrs(usage));
-  }
-
-  public setStatus(status: { code: SpanStatusCode; message?: string }): void {
-    this.span.setStatus(status);
-    const codeName = SpanStatusCode[status.code];
-    this.metadata['span.status_code'] =
-      typeof codeName === 'string' ? codeName : String(status.code);
-    this.metadata['span.status_code_value'] = String(status.code);
-    if (status.message) {
-      this.metadata['span.status_message'] = String(status.message);
-    }
-  }
-
-  public recordException(error: any): void {
-    this.span.recordException(error);
-    const type = error?.name ?? (error?.constructor?.name ?? undefined);
-    const message =
-      error?.message ?? (typeof error === 'string' ? error : undefined);
-    if (type) {
-      this.metadata['exception.type'] = String(type);
-    }
-    if (message) {
-      this.metadata['exception.message'] = String(message);
-    }
-  }
-
-  public fail(error: any): void {
-    this.recordException(error);
-    this.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error?.message ?? String(error),
-    });
-  }
-
-  public end(): void {
-    if (this.ended) {
-      return;
-    }
-    this.ended = true;
-    this.span.end();
-    this.onEnd(this.spanName, { ...this.metadata });
-  }
-}
-
-function attributeValueToMetadata(value: AttributeValue): MetadataValue {
-  if (value === null || value === undefined) {
-    return 'null';
-  }
-
-  if (Array.isArray(value)) {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === 'object') {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  return String(value);
 }
