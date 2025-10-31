@@ -8,6 +8,22 @@ import {
 } from '@opentelemetry/api';
 import { SpanTelemetry } from './span-telemetry';
 import { OpenAILike, StatsigOpenAIProxyConfig } from './openai-configs';
+import {
+  STATSIG_ATTR_CUSTOM_IDS,
+  STATSIG_ATTR_LLM_PROMPT_NAME,
+  STATSIG_ATTR_LLM_PROMPT_VERSION,
+  STATSIG_ATTR_SPAN_LLM_ROOT,
+  STATSIG_ATTR_SPAN_TYPE,
+  STATSIG_ATTR_USER_ID,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+  STATSIG_SPAN_LLM_ROOT_VALUE,
+  StatsigSpanType,
+} from '../otel/conventions';
+import { OtelSingleton } from '../otel/singleton';
+import { getUserFromContext } from '../otel/user-context';
+
+const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
 type APIPromise<T> = Promise<T> & {
   withResponse?: () => Promise<{ data: T; response: Response }>;
@@ -23,7 +39,9 @@ export class StatsigOpenAIProxy {
 
   constructor(openai: OpenAILike, config: StatsigOpenAIProxyConfig) {
     this.openai = openai;
-    this.tracer = trace.getTracer('statsig-openai-proxy');
+    this.tracer = OtelSingleton.getInstance()
+      .getTracerProvider()
+      .getTracer('statsig-openai-proxy');
     this._redact = config.redact;
     this._ensureStreamUsage = config.ensureStreamUsage ?? true;
     this._maxJSONChars = config.maxJSONChars ?? 40_000;
@@ -401,24 +419,58 @@ export class StatsigOpenAIProxy {
     inputJSONKey?: string,
     inputJSON?: any,
   ): SpanTelemetry {
-    const attributes = {
+    let ctx = context.active();
+    const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
+    const statsigAttrs: Record<string, AttributeValue> = {
+      [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
+    };
+    if (
+      typeof maybeRootSpan === 'undefined' ||
+      (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
+    ) {
+      ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
+      statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
+    }
+
+    const maybeContextPrompt = ctx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT);
+    const maybeContextPromptVersion = ctx.getValue(
+      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+    );
+    if (maybeContextPrompt && typeof maybeContextPrompt === 'string') {
+      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_NAME] = maybeContextPrompt;
+    }
+    if (
+      maybeContextPromptVersion &&
+      typeof maybeContextPromptVersion === 'string'
+    ) {
+      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_VERSION] = maybeContextPromptVersion;
+    }
+
+    const attributes: Record<string, AttributeValue | undefined> = {
       'gen_ai.system': 'openai',
       'gen_ai.operation.name': operationName,
       ...(this._customAttributes ?? {}),
       ...(baseAttrs ?? {}),
-    } as Record<string, AttributeValue | undefined>;
+      ...statsigAttrs,
+    };
+    const sanitizedSpanName = sanitizeSpanName(spanName);
 
-    const span = this.tracer.startSpan(spanName, {
-      kind: SpanKind.CLIENT,
-      attributes,
-    });
+    const span = this.tracer.startSpan(
+      sanitizedSpanName,
+      {
+        kind: SpanKind.CLIENT,
+        attributes,
+      },
+      ctx,
+    );
 
-    const telemetry = new SpanTelemetry(span, spanName, this._maxJSONChars);
+    const telemetry = new SpanTelemetry(
+      span,
+      sanitizedSpanName,
+      this._maxJSONChars,
+    );
 
     telemetry.setAttributes(attributes);
-
-    telemetry.setAttributes({ 'span.kind': 'client' });
-
     if (inputJSONKey && inputJSON !== undefined) {
       telemetry.setJSON(inputJSONKey, inputJSON);
     }
@@ -629,4 +681,27 @@ function postprocessChatStream(all: any[]) {
 
 function isAsyncIterable<T = any>(x: any): x is AsyncIterable<T> {
   return x && typeof x[Symbol.asyncIterator] === 'function';
+}
+
+function sanitizeSpanName(value: string, maxLength: number = 128): string {
+  if (!value) {
+    return 'unknown_span';
+  }
+
+  // Lowercase for consistency
+  let spanName = value.toLowerCase();
+
+  // Replace unsafe characters with underscores
+  spanName = spanName.replace(/[^a-z0-9._-]+/g, '_');
+
+  // Collapse multiple underscores
+  spanName = spanName.replace(/_+/g, '_');
+
+  // Trim leading/trailing underscores or dashes
+  spanName = spanName.replace(/^[_-]+|[_-]+$/g, '');
+
+  // Enforce max length
+  spanName = spanName.slice(0, maxLength);
+
+  return spanName || 'unknown_span';
 }

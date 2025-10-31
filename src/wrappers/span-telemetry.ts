@@ -16,7 +16,6 @@ export class SpanTelemetry {
     private readonly maxJSONChars: number,
   ) {
     this.metadata['span.name'] = spanName;
-    this.metadata['span_name'] = sanitizeSpanName(spanName);
     const ctx = span.spanContext();
     this.metadata['span.trace_id'] = ctx.traceId;
     this.metadata['span.span_id'] = ctx.spanId;
@@ -113,7 +112,7 @@ export class SpanTelemetry {
       statsig.logEvent(
         PLACEHOLDER_STATSIG_USER,
         GEN_AI_EVENT_NAME,
-        sanitizeSpanName(spanName),
+        spanName,
         metadata,
       );
     } catch (err: any) {
@@ -123,29 +122,6 @@ export class SpanTelemetry {
       );
     }
   }
-}
-
-function sanitizeSpanName(value: string, maxLength: number = 128): string {
-  if (!value) {
-    return 'unknown_span';
-  }
-
-  // Lowercase for consistency
-  let spanName = value.toLowerCase();
-
-  // Replace unsafe characters with underscores
-  spanName = spanName.replace(/[^a-z0-9._-]+/g, '_');
-
-  // Collapse multiple underscores
-  spanName = spanName.replace(/_+/g, '_');
-
-  // Trim leading/trailing underscores or dashes
-  spanName = spanName.replace(/^[_-]+|[_-]+$/g, '');
-
-  // Enforce max length
-  spanName = spanName.slice(0, maxLength);
-
-  return spanName || 'unknown_span';
 }
 
 function attributeValueToMetadata(value: AttributeValue): string {
