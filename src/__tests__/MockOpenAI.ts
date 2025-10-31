@@ -114,9 +114,10 @@ export class MockOpenAI implements Partial<OpenAI> {
   constructor() {
     this.chat = {
       completions: {
-        create: jest
-          .fn()
-          .mockResolvedValue(DefaultMockResponses.chatCompletion),
+        create: jest.fn().mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return DefaultMockResponses.chatCompletion;
+        }),
       },
     };
 
