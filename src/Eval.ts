@@ -25,7 +25,7 @@ export type EvalScorerArgs<Input, Output, Expected> = EvalDataRecord<
 export type Score = number | boolean;
 export type EvalScorer<Input, Output, Expected> = (
   args: EvalScorerArgs<Input, Output, Expected>,
-) => Score;
+) => Score | Promise<Score>;
 
 export interface EvalOptions<Input, Output, Expected> {
   /** Dataset of input/expected pairs or data set */

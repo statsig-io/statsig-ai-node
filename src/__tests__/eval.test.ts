@@ -63,18 +63,18 @@ describe('Eval', () => {
 
     const fetchMock = global.fetch as jest.Mock;
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
       'http://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
-    expect(init?.method).toBe('POST');
-    expect(init?.headers).toMatchObject({
+    expect(req?.method).toBe('POST');
+    expect(req?.headers).toMatchObject({
       'Content-Type': 'application/json',
       'STATSIG-API-KEY': 'test-console-api-key',
     });
 
-    const body = JSON.parse(init?.body as string);
+    const body = JSON.parse(req?.body as string);
     expect(body.name).toBe('run-123');
     expect(Array.isArray(body.dataset)).toBe(true);
     expect(body.dataset).toEqual(results);
@@ -108,8 +108,8 @@ describe('Eval', () => {
     expect(metadata.error).toBe(true);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse(init?.body as string);
+    const [, req] = fetchMock.mock.calls[0];
+    const body = JSON.parse(req?.body as string);
     expect(body.name).toBe('run-errors');
     expect(body.dataset).toEqual(results);
   });
@@ -134,5 +134,167 @@ describe('Eval', () => {
         scorer: ({ output, expected }) => output === (expected as any),
       }),
     ).rejects.toThrow(/Invalid type provided to data parameter/);
+  });
+
+  test('handles data provided as a Promise', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hi Foo' },
+      { input: 'Bar', expected: 'Hello Bar' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: Promise.resolve(dataset),
+      task: (input: string) => 'Hello ' + input,
+      scorer: ({ output, expected }) => output === (expected as any),
+      evalRunName: 'run-promise',
+    });
+
+    const { results, metadata } = evalResult;
+
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hi Foo',
+      output: 'Hello Foo',
+      score: 0,
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      score: 1,
+    });
+
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-promise');
+    expect(body.dataset).toEqual(results);
+  });
+
+  test('handles data provided as an async function', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hi Foo' },
+      { input: 'Bar', expected: 'Hello Bar' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: async () => dataset,
+      task: (input: string) => 'Hello ' + input,
+      scorer: ({ output, expected }) => output === (expected as any),
+      evalRunName: 'run-async-data',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hi Foo',
+      output: 'Hello Foo',
+      score: 0,
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      score: 1,
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-async-data');
+    expect(body.dataset).toEqual(results);
+  });
+
+  test('handles async task function', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hi Foo' },
+      { input: 'Bar', expected: 'Hello Bar' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: async (input: string) => 'Hello ' + input,
+      scorer: ({ output, expected }) => output === (expected as any),
+      evalRunName: 'run-async-task',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hi Foo',
+      output: 'Hello Foo',
+      score: 0,
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      score: 1,
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-async-task');
+    expect(body.dataset).toEqual(results);
+  });
+
+  test('handles async scorer function', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hi Foo' },
+      { input: 'Bar', expected: 'Hello Bar' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: (input: string) => 'Hello ' + input,
+      scorer: async ({ output, expected }) => output === (expected as any),
+      evalRunName: 'run-async-scorer',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hi Foo',
+      output: 'Hello Foo',
+      score: 0,
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      score: 1,
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-async-scorer');
+    expect(body.dataset).toEqual(results);
   });
 });
