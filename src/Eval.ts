@@ -36,20 +36,32 @@ export interface EvalOptions<Input, Output, Expected> {
 
   /** Function that scores model output against expected output */
   scorer: EvalScorer<Input, Output, Expected>;
+
+  /** Optional name to identify the run of the eval */
+  evalRunName?: string;
 }
 
-export interface EvalResult<Input, Output, Expected> {
+export interface EvalResulRecord<Input, Output, Expected> {
   input: Input;
   expected: Expected;
   output: Output;
   score: number;
 }
 
+export interface EvalMetadata {
+  error: boolean;
+}
+
+export interface EvalResult<Input, Output, Expected> {
+  results: EvalResulRecord<Input, Output, Expected>[];
+  metadata: EvalMetadata;
+}
+
 export async function Eval<Input, Output, Expected>(
   name: string,
   options: EvalOptions<Input, Output, Expected>,
-): Promise<EvalResult<Input, Output, Expected>[]> {
-  const { data, task, scorer } = options;
+): Promise<EvalResult<Input, Output, Expected>> {
+  const { data, task, scorer, evalRunName } = options;
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
@@ -75,9 +87,11 @@ export async function Eval<Input, Output, Expected>(
         });
         score = typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
       } catch (err) {
-        error = true;
         console.warn('[Statsig] Eval failed:', record.input, err);
-        output = '[Error]' as unknown as Output;
+        if (output === undefined) {
+          output = '[Error]' as unknown as Output;
+        }
+        error = true;
         score = 0;
       }
 
@@ -91,8 +105,11 @@ export async function Eval<Input, Output, Expected>(
     }),
   );
 
-  await sendEvalResults(name, results, apiKey);
-  return results;
+  await sendEvalResults(name, results, apiKey, evalRunName);
+  return {
+    results,
+    metadata: { error: results.some((result) => result.error) },
+  };
 }
 
 async function normalizeEvalData<Input, Expected>(
@@ -127,8 +144,9 @@ async function normalizeEvalData<Input, Expected>(
 
 async function sendEvalResults<Input, Output, Expected>(
   name: string,
-  results: EvalResult<Input, Output, Expected>[],
+  records: EvalResulRecord<Input, Output, Expected>[],
   apiKey: string,
+  evalRunName?: string,
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -139,7 +157,7 @@ async function sendEvalResults<Input, Output, Expected>(
           'Content-Type': 'application/json',
           'STATSIG-API-KEY': apiKey,
         },
-        body: JSON.stringify({ dataset: results }),
+        body: JSON.stringify({ dataset: records, name: evalRunName }),
       },
     );
 
@@ -149,7 +167,7 @@ async function sendEvalResults<Input, Output, Expected>(
       );
     } else {
       console.info(
-        `[Statsig] Sent eval results (${results.length} records): ${response.statusText}`,
+        `[Statsig] Sent eval results (${records.length} records): ${response.statusText}`,
       );
     }
   } catch (error) {
