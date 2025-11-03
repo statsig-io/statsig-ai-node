@@ -1,6 +1,9 @@
 const STATSIG_POST_EVAL_ENDPOINT =
   'http://api.statsig.com/console/v1/evals/send_results';
 
+import _fetch from 'node-fetch';
+const fetchFn = globalThis.fetch ?? _fetch;
+
 export interface EvalDataRecord<Input, Expected> {
   input: Input;
   expected: Expected;
@@ -149,7 +152,7 @@ async function sendEvalResults<Input, Output, Expected>(
   evalRunName?: string,
 ): Promise<void> {
   try {
-    const response = await fetch(
+    const response = await fetchFn(
       `${STATSIG_POST_EVAL_ENDPOINT}/${encodeURIComponent(name)}`,
       {
         method: 'POST',

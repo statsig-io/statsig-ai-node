@@ -26,10 +26,10 @@
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/context-async-hooks": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.36.0",
-    "@statsig/statsig-node-core": "*"
+    "@statsig/statsig-node-core": "*",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@statsig/statsig-node-core": "*",
     "@types/compression": "^1.7.5",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
