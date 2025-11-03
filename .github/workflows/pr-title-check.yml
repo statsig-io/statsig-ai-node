@@ -18,13 +18,13 @@ jobs:
               return;
             }
 
-            if (startsWith(github.head_ref, 'betas/') || startsWith(github.head_ref, 'releases/')) {
+            if (title.includes('[release]')) {
               core.info('✅ PR title is allowed for release branches. No validation required.');
               return;
             }
 
             const regex = /^[a-zA-Z]+(\([a-zA-Z]+\))?: .+/;
-            const allowedPrefixes = ['feat', 'fix', 'refac', 'chore', 'tool', '[release]'];
+            const allowedPrefixes = ['feat', 'fix', 'refac', 'chore', 'tool'];
 
             // 1. Validate format matches regex
             if (!regex.test(title)) {
