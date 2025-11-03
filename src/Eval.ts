@@ -22,10 +22,10 @@ export type EvalScorerArgs<Input, Output, Expected> = EvalDataRecord<
   Input,
   Expected
 > & { output: Output };
-
+export type Score = number | boolean;
 export type EvalScorer<Input, Output, Expected> = (
   args: EvalScorerArgs<Input, Output, Expected>,
-) => number;
+) => Score;
 
 export interface EvalOptions<Input, Output, Expected> {
   /** Dataset of input/expected pairs or data set */
@@ -36,12 +36,6 @@ export interface EvalOptions<Input, Output, Expected> {
 
   /** Function that scores model output against expected output */
   scorer: EvalScorer<Input, Output, Expected>;
-
-  /** Optional override for API endpoint */
-  endpoint?: string;
-
-  /** Optional override for API key */
-  apiKey?: string;
 }
 
 export interface EvalResult<Input, Output, Expected> {
@@ -55,44 +49,99 @@ export async function Eval<Input, Output, Expected>(
   name: string,
   options: EvalOptions<Input, Output, Expected>,
 ): Promise<EvalResult<Input, Output, Expected>[]> {
-  const { data, task, scorer, endpoint, apiKey } = options;
+  const { data, task, scorer } = options;
+  const apiKey = process.env.STATSIG_API_KEY;
 
-  const dataset = typeof data === 'function' ? data() : data;
-  const results: EvalResult<Input, Output, Expected>[] = [];
+  if (!apiKey) {
+    throw new Error(
+      '[Statsig] Missing Statsig Console API key. Please set the STATSIG_API_KEY environment variable with your Statsig console API key.',
+    );
+  }
 
-  for (const record of dataset) {
-    try {
-      const output = await task(record.input);
-      const rawScore = scorer(output, record.expected);
-      const score =
-        typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
+  const normalizedData = await normalizeEvalData(data);
 
-      results.push({
+  const results = await Promise.all(
+    normalizedData.map(async (record) => {
+      let output: Output | undefined;
+      let score = 0;
+      let error = false;
+
+      try {
+        output = await task(record.input);
+        const rawScore = await scorer({
+          input: record.input,
+          expected: record.expected,
+          output,
+        });
+        score = typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
+      } catch (err) {
+        error = true;
+        console.warn('[Statsig] Eval failed:', record.input, err);
+        output = '[Error]' as unknown as Output;
+        score = 0;
+      }
+
+      return {
         input: record.input,
         expected: record.expected,
         output,
         score,
-      });
-    } catch (err) {
-      console.warn(`[Statsig] Eval task failed for input:`, record.input, err);
-      results.push({
-        input: record.input,
-        expected: record.expected,
-        output: '[Error]',
-        score: 0,
-      });
-    }
+        ...(error ? { error: true } : {}),
+      };
+    }),
+  );
+
+  await sendEvalResults(name, results, apiKey);
+  return results;
+}
+
+async function normalizeEvalData<Input, Expected>(
+  data: EvalData<Input, Expected>,
+): Promise<EvalDataRecord<Input, Expected>[]> {
+  if (typeof data === 'string') {
+    throw new Error(
+      '[Statsig] Invalid type provided to data parameter. String is not supported.',
+    );
   }
 
+  let dataOrAsyncData = typeof data === 'function' ? data() : data;
+
+  if (dataOrAsyncData instanceof Promise) {
+    return await dataOrAsyncData;
+  }
+
+  if (Symbol.asyncIterator in Object(dataOrAsyncData)) {
+    const collected: EvalDataRecord<Input, Expected>[] = [];
+    for await (const data of dataOrAsyncData) {
+      collected.push(data);
+    }
+    return collected;
+  }
+
+  if (Array.isArray(dataOrAsyncData)) {
+    return dataOrAsyncData;
+  }
+
+  throw new Error('[Statsig] Invalid type provided to data parameter.');
+}
+
+async function sendEvalResults<Input, Output, Expected>(
+  name: string,
+  results: EvalResult<Input, Output, Expected>[],
+  apiKey: string,
+): Promise<void> {
   try {
-    const response = await fetch(`${endpoint}/${encodeURIComponent(name)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'STATSIG-API-KEY': apiKey,
+    const response = await fetch(
+      `${STATSIG_POST_EVAL_ENDPOINT}/${encodeURIComponent(name)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'STATSIG-API-KEY': apiKey,
+        },
+        body: JSON.stringify({ dataset: results }),
       },
-      body: JSON.stringify({ dataset: results }),
-    });
+    );
 
     if (!response.ok) {
       console.warn(
@@ -106,6 +155,4 @@ export async function Eval<Input, Output, Expected>(
   } catch (error) {
     console.error(`[Statsig] Error sending eval results:`, error);
   }
-
-  return results;
 }
