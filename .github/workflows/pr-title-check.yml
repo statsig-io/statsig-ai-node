@@ -18,6 +18,11 @@ jobs:
               return;
             }
 
+            if (startsWith(github.head_ref, 'betas/') || startsWith(github.head_ref, 'releases/')) {
+              core.info('✅ PR title is allowed for release branches. No validation required.');
+              return;
+            }
+
             const regex = /^[a-zA-Z]+(\([a-zA-Z]+\))?: .+/;
             const allowedPrefixes = ['feat', 'fix', 'refac', 'chore', 'tool', '[release]'];
 
