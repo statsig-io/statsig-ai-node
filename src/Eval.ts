@@ -1,5 +1,5 @@
 const STATSIG_POST_EVAL_ENDPOINT =
-  'http://api.statsig.com/console/v1/evals/send_results';
+  'https://latest.statsigapi.net/console/v1/evals/send_results';
 
 export interface EvalDataRecord<Input, Expected> {
   input: Input;
@@ -41,11 +41,11 @@ export interface EvalOptions<Input, Output, Expected> {
   evalRunName?: string;
 }
 
-export interface EvalResulRecord<Input, Output, Expected> {
+export interface EvalResultRecord<Input, Output, Expected> {
   input: Input;
   expected: Expected;
   output: Output;
-  score: number;
+  score: string;
 }
 
 export interface EvalMetadata {
@@ -53,7 +53,7 @@ export interface EvalMetadata {
 }
 
 export interface EvalResult<Input, Output, Expected> {
-  results: EvalResulRecord<Input, Output, Expected>[];
+  results: EvalResultRecord<Input, Output, Expected>[];
   metadata: EvalMetadata;
 }
 
@@ -99,7 +99,7 @@ export async function Eval<Input, Output, Expected>(
         input: record.input,
         expected: record.expected,
         output,
-        score,
+        score: score.toString(),
         ...(error ? { error: true } : {}),
       };
     }),
@@ -144,7 +144,7 @@ async function normalizeEvalData<Input, Expected>(
 
 async function sendEvalResults<Input, Output, Expected>(
   name: string,
-  records: EvalResulRecord<Input, Output, Expected>[],
+  records: EvalResultRecord<Input, Output, Expected>[],
   apiKey: string,
   evalRunName?: string,
 ): Promise<void> {
