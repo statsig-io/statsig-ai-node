@@ -1,4 +1,4 @@
-import { Eval } from '../Eval';
+import { Eval } from '../evals/Eval';
 
 describe('Eval', () => {
   const ORIGINAL_API_KEY = process.env.STATSIG_API_KEY;
@@ -50,13 +50,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      score: 0,
+      score: '0',
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      score: 1,
+      score: '1',
     });
 
     expect(metadata.error).toBe(false);
@@ -65,7 +65,7 @@ describe('Eval', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'http://api.statsig.com/console/v1/evals/send_results/' +
+      'https://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
     expect(req?.method).toBe('POST');
@@ -102,7 +102,7 @@ describe('Eval', () => {
       input: 'Boom',
       expected: 'Anything',
       output: '[Error]',
-      score: 0,
+      score: '0',
       error: true,
     });
     expect(metadata.error).toBe(true);
@@ -156,13 +156,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      score: 0,
+      score: '0',
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      score: 1,
+      score: '1',
     });
 
     expect(metadata.error).toBe(false);
@@ -170,7 +170,7 @@ describe('Eval', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'http://api.statsig.com/console/v1/evals/send_results/' +
+      'https://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
     const body = JSON.parse(req?.body as string);
@@ -197,20 +197,20 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      score: 0,
+      score: '0',
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      score: 1,
+      score: '1',
     });
     expect(metadata.error).toBe(false);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'http://api.statsig.com/console/v1/evals/send_results/' +
+      'https://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
     const body = JSON.parse(req?.body as string);
@@ -237,20 +237,20 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      score: 0,
+      score: '0',
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      score: 1,
+      score: '1',
     });
     expect(metadata.error).toBe(false);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'http://api.statsig.com/console/v1/evals/send_results/' +
+      'https://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
     const body = JSON.parse(req?.body as string);
@@ -277,20 +277,20 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      score: 0,
+      score: '0',
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      score: 1,
+      score: '1',
     });
     expect(metadata.error).toBe(false);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, req] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'http://api.statsig.com/console/v1/evals/send_results/' +
+      'https://api.statsig.com/console/v1/evals/send_results/' +
         encodeURIComponent('test task'),
     );
     const body = JSON.parse(req?.body as string);

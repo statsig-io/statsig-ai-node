@@ -2,7 +2,7 @@ import { EvalParameters, InferParameters } from './EvalParameters';
 import { EvalHooks } from './EvalHooks';
 
 const STATSIG_POST_EVAL_ENDPOINT =
-  'https://latest.statsigapi.net/console/v1/evals/send_results';
+  'https://api.statsig.com/console/v1/evals/send_results';
 
 export interface EvalDataRecord<Input, Expected> {
   input: Input;
