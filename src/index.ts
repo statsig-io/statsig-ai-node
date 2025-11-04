@@ -16,6 +16,7 @@ import { initializeTracing } from './otel/otel';
 import { StatsigSpanProcessor } from './otel/processor';
 import { StatsigOTLPTraceExporter } from './otel/exporter';
 import { withStatsigUserContext } from './otel/user-context';
+import { Eval } from './evals/Eval';
 
 export {
   Prompt,
@@ -29,6 +30,7 @@ export {
   withStatsigUserContext,
   StatsigSpanProcessor,
   StatsigOTLPTraceExporter,
+  Eval,
 };
 export class StatsigAI extends StatsigAIInstance {
   private static _sharedAIStatsigInstance: StatsigAI | null = null;
