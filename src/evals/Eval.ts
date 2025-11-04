@@ -17,12 +17,7 @@ export type EvalData<Input, Expected> =
   | AsyncGenerator<EvalDataRecord<Input, Expected>>
   | AsyncIterable<EvalDataRecord<Input, Expected>>;
 
-export type EvalTask<
-  Input,
-  Output,
-  Expected,
-  Parameters extends EvalParameters,
-> =
+export type EvalTask<Input, Output, Parameters extends EvalParameters> =
   | ((input: Input, hooks: EvalHooks<Parameters>) => Promise<Output>)
   | ((input: Input, hooks: EvalHooks<Parameters>) => Output);
 
@@ -45,7 +40,7 @@ export interface EvalOptions<
   data: EvalData<Input, Expected>;
 
   /** Function that generates an output given the input */
-  task: EvalTask<Input, Output, Expected, Parameters>;
+  task: EvalTask<Input, Output, Parameters>;
 
   /** Function that scores model output against expected output */
   scorer: EvalScorer<Input, Output, Expected>;
