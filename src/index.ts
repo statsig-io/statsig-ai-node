@@ -17,7 +17,7 @@ import { initializeTracing } from './otel/otel-v2';
 import { StatsigSpanProcessor } from './otel/processor';
 import { StatsigOTLPTraceExporter } from './otel/exporter';
 import { withStatsigUserContext } from './otel/user-context';
-import { Eval } from './Eval';
+import { Eval } from './evals/Eval';
 
 export {
   Prompt,

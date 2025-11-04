@@ -1,3 +1,6 @@
+import { EvalParameters, InferParameters } from './EvalParameters';
+import { EvalHooks } from './EvalHooks';
+
 const STATSIG_POST_EVAL_ENDPOINT =
   'https://latest.statsigapi.net/console/v1/evals/send_results';
 
@@ -14,9 +17,14 @@ export type EvalData<Input, Expected> =
   | AsyncGenerator<EvalDataRecord<Input, Expected>>
   | AsyncIterable<EvalDataRecord<Input, Expected>>;
 
-export type EvalTask<Input, Output> = (
-  input: Input,
-) => Output | Promise<Output>;
+export type EvalTask<
+  Input,
+  Output,
+  Expected,
+  Parameters extends EvalParameters,
+> =
+  | ((input: Input, hooks: EvalHooks<Parameters>) => Promise<Output>)
+  | ((input: Input, hooks: EvalHooks<Parameters>) => Output);
 
 export type EvalScorerArgs<Input, Output, Expected> = EvalDataRecord<
   Input,
@@ -27,15 +35,23 @@ export type EvalScorer<Input, Output, Expected> = (
   args: EvalScorerArgs<Input, Output, Expected>,
 ) => Score | Promise<Score>;
 
-export interface EvalOptions<Input, Output, Expected> {
+export interface EvalOptions<
+  Input,
+  Output,
+  Expected,
+  Parameters extends EvalParameters,
+> {
   /** Dataset of input/expected pairs or data set */
   data: EvalData<Input, Expected>;
 
   /** Function that generates an output given the input */
-  task: EvalTask<Input, Output>;
+  task: EvalTask<Input, Output, Expected, Parameters>;
 
   /** Function that scores model output against expected output */
   scorer: EvalScorer<Input, Output, Expected>;
+
+  /** Parameters for the eval */
+  parameters?: Parameters;
 
   /** Optional name to identify the run of the eval */
   evalRunName?: string;
@@ -57,11 +73,16 @@ export interface EvalResult<Input, Output, Expected> {
   metadata: EvalMetadata;
 }
 
-export async function Eval<Input, Output, Expected>(
+export async function Eval<
+  Input,
+  Output,
+  Expected,
+  Parameters extends EvalParameters,
+>(
   name: string,
-  options: EvalOptions<Input, Output, Expected>,
+  options: EvalOptions<Input, Output, Expected, Parameters>,
 ): Promise<EvalResult<Input, Output, Expected>> {
-  const { data, task, scorer, evalRunName } = options;
+  const { data, task, scorer, parameters, evalRunName } = options;
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
@@ -79,7 +100,9 @@ export async function Eval<Input, Output, Expected>(
       let error = false;
 
       try {
-        output = await task(record.input);
+        output = await task(record.input, {
+          parameters: parameters as InferParameters<Parameters>,
+        });
         const rawScore = await scorer({
           input: record.input,
           expected: record.expected,
