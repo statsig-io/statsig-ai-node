@@ -1,5 +1,5 @@
 import {
-  initializeOtel,
+  initializeTracing,
   wrapOpenAI,
   StatsigSpanProcessor,
   StatsigOTLPTraceExporter,
@@ -28,7 +28,7 @@ const provider = new NodeTracerProvider({
 
 provider.register();
 
-initializeOtel({
+initializeTracing({
   globalTraceProvider: provider,
 });
 

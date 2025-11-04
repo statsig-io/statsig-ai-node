@@ -1,8 +1,25 @@
 {
   "name": "@statsig/statsig-ai",
   "version": "0.0.1-beta.4",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./otel": { 
+      "import": "./dist/otel/index.js",
+      "require": "./dist/otel/index.js",
+      "types": "./dist/otel/index.d.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": ["./dist/index.d.ts"] ,
+      "otel": ["./dist/otel/index.d.ts"]
+    }
+  },
+  "types": "./dist/index.d.ts",
   "scripts": {
     "prepare": "rm -rf dist/ && tsc",
     "test": "npm run prepare && jest --forceExit",

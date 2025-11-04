@@ -1,33 +1,41 @@
 import { trace, type TracerProvider } from '@opentelemetry/api';
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 
+const globalForOtel = globalThis as typeof globalThis & {
+  __statsig_ai_OtelSingleton?: OtelSingleton | null;
+};
+
 type InitializeOptions = {
   tracerProvider: TracerProvider;
 };
 
 export class OtelSingleton {
-  private static _instance: OtelSingleton | null;
-
   protected constructor(private tracerProvider: TracerProvider) {}
 
   static getInstance(): OtelSingleton {
-    return OtelSingleton._instance ?? NoopOtelSingleton.getInstance();
+    return (
+      globalForOtel.__statsig_ai_OtelSingleton ??
+      NoopOtelSingleton.getInstance()
+    );
   }
 
   static instantiate(options: InitializeOptions): OtelSingleton {
-    if (OtelSingleton._instance != null) {
+    const instance = globalForOtel.__statsig_ai_OtelSingleton;
+    if (instance != null) {
       console.warn(
         'OtelSingleton instance has already been created. Returning the existing instance.',
       );
-      return OtelSingleton._instance;
+      return instance;
     }
-    OtelSingleton._instance = new OtelSingleton(options.tracerProvider);
-    return OtelSingleton._instance;
+    globalForOtel.__statsig_ai_OtelSingleton = new OtelSingleton(
+      options.tracerProvider,
+    );
+    return globalForOtel.__statsig_ai_OtelSingleton;
   }
 
   /** @internal -- sets the otel instance to null */
   static __reset(): void {
-    OtelSingleton._instance = null;
+    globalForOtel.__statsig_ai_OtelSingleton = null;
   }
 
   public getTracerProvider(): TracerProvider {

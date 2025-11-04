@@ -1,12 +1,12 @@
 import { trace } from '@opentelemetry/api';
-import { initializeOtel } from '../../src';
+import { initializeTracing } from '../../src';
 import { wrapOpenAI } from '../../src';
 
 import { Statsig } from '@statsig/statsig-node-core';
 
 import { OpenAI } from 'openai';
 
-const { provider } = initializeOtel({
+const { provider } = initializeTracing({
   serviceName: 'statsig-ai',
   exporterOptions: {
     sdkKey: process.env.STATSIG_SDK_KEY!,

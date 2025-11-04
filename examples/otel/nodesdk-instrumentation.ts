@@ -8,11 +8,11 @@ import {
 
 import { resourceFromAttributes } from '@opentelemetry/resources';
 
-import { initializeOtel } from '../../src';
+import { initializeTracing } from '../../src';
 
 // when you have your own otel setup and don't want to use the global trace provider
 // you can disable it with the options below
-const { processor, exporter } = initializeOtel({
+const { processor, exporter } = initializeTracing({
   // prevents creating a global context manager
   skipGlobalContextManagerSetup: true,
   serviceName: 'statsig-ai',
@@ -22,10 +22,10 @@ const { processor, exporter } = initializeOtel({
 });
 
 const sdk = new NodeSDK({
-  // IMPORTANT: use the processor created by initializeOtel
+  // IMPORTANT: use the processor created by initializeTracing
   // to make sure that spans are exported to Statsig
   spanProcessors: [processor],
-  // you can optionally use the exporter created by initializeOtel
+  // you can optionally use the exporter created by initializeTracing
   // to export traces to other backends instead
   // traceExporter: exporter,
   metricReader: new PeriodicExportingMetricReader({

@@ -18,7 +18,7 @@ function waitFor(ms: number) {
 async function main() {
   await statsig.initialize();
 
-  // initializeOtel setups a global trace provider by default
+  // initializeTracing setups a global trace provider by default
   // allowing you to get tracers from anywhere in your app
   await tracer.startActiveSpan('example-span', async (span) => {
     span.setAttribute('example-attribute', 'example-value');
