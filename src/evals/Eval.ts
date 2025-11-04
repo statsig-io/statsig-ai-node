@@ -1,34 +1,18 @@
-import { EvalParameters, InferParameters } from './EvalParameters';
+import {
+  EvalParameters,
+  InferParameters,
+  parseParameters,
+} from './EvalParameters';
 import { EvalHooks } from './EvalHooks';
+import { EvalData, EvalDataRecord } from './EvalData';
+import { EvalScorers, ScorerFunction } from './EvalScorer';
 
 const STATSIG_POST_EVAL_ENDPOINT =
   'https://api.statsig.com/console/v1/evals/send_results';
 
-export interface EvalDataRecord<Input, Expected> {
-  input: Input;
-  expected: Expected;
-}
-
-export type EvalData<Input, Expected> =
-  | EvalDataRecord<Input, Expected>[]
-  | (() => EvalDataRecord<Input, Expected>[])
-  | Promise<EvalDataRecord<Input, Expected>[]>
-  | (() => Promise<EvalDataRecord<Input, Expected>[]>)
-  | AsyncGenerator<EvalDataRecord<Input, Expected>>
-  | AsyncIterable<EvalDataRecord<Input, Expected>>;
-
 export type EvalTask<Input, Output, Parameters extends EvalParameters> =
   | ((input: Input, hooks: EvalHooks<Parameters>) => Promise<Output>)
   | ((input: Input, hooks: EvalHooks<Parameters>) => Output);
-
-export type EvalScorerArgs<Input, Output, Expected> = EvalDataRecord<
-  Input,
-  Expected
-> & { output: Output };
-export type Score = number | boolean;
-export type EvalScorer<Input, Output, Expected> = (
-  args: EvalScorerArgs<Input, Output, Expected>,
-) => Score | Promise<Score>;
 
 export interface EvalOptions<
   Input,
@@ -42,8 +26,10 @@ export interface EvalOptions<
   /** Function that generates an output given the input */
   task: EvalTask<Input, Output, Parameters>;
 
-  /** Function that scores model output against expected output */
-  scorer: EvalScorer<Input, Output, Expected>;
+  /** Object of named scorer functions, or a single scorer function (will be named "eval_grader" by default) */
+  scorer:
+    | EvalScorers<Input, Output, Expected>
+    | ScorerFunction<Input, Output, Expected>;
 
   /** Parameters for the eval */
   parameters?: Parameters;
@@ -56,7 +42,7 @@ export interface EvalResultRecord<Input, Output, Expected> {
   input: Input;
   expected: Expected;
   output: Output;
-  score: string;
+  scores: Record<string, string>;
 }
 
 export interface EvalMetadata {
@@ -66,19 +52,6 @@ export interface EvalMetadata {
 export interface EvalResult<Input, Output, Expected> {
   results: EvalResultRecord<Input, Output, Expected>[];
   metadata: EvalMetadata;
-}
-
-function parseParameters<Parameters extends EvalParameters>(
-  parameters: Parameters,
-): InferParameters<Parameters> {
-  const parsed: any = {};
-  for (const key in parameters) {
-    if (parameters.hasOwnProperty(key)) {
-      // Parse with undefined to trigger default values
-      parsed[key] = parameters[key].parse(undefined);
-    }
-  }
-  return parsed as InferParameters<Parameters>;
 }
 
 export async function Eval<
@@ -104,36 +77,65 @@ export async function Eval<
     ? parseParameters(parameters)
     : ({} as InferParameters<Parameters>);
 
+  const normalizedScorer =
+    typeof scorer === 'function'
+      ? { Grader: scorer }
+      : typeof scorer === 'object' && scorer !== null
+        ? scorer
+        : null;
+
+  if (!normalizedScorer) {
+    throw new Error('[Statsig] Invalid scorer provided.');
+  }
+
   const results = await Promise.all(
     normalizedData.map(async (record) => {
       let output: Output | undefined;
-      let score = 0;
+      let scores: Record<string, string> = {};
       let error = false;
 
       try {
         output = await task(record.input, {
           parameters: parsedParameters,
         });
-        const rawScore = await scorer({
+
+        const scorerArgs = {
           input: record.input,
           expected: record.expected,
           output,
-        });
-        score = typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
+        };
+
+        await Promise.all(
+          Object.entries(normalizedScorer).map(async ([name, scorerFn]) => {
+            try {
+              const rawScore = await scorerFn(scorerArgs);
+              const normalizedScore =
+                typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
+              scores[name] = normalizedScore.toString();
+            } catch (err) {
+              console.warn(
+                `[Statsig] Scorer '${name}' failed:`,
+                record.input,
+                err,
+              );
+              scores[name] = '0';
+            }
+          }),
+        );
       } catch (err) {
         console.warn('[Statsig] Eval failed:', record.input, err);
         if (output === undefined) {
           output = '[Error]' as unknown as Output;
         }
         error = true;
-        score = 0;
+        scores = {};
       }
 
       return {
         input: record.input,
         expected: record.expected,
         output,
-        score: score.toString(),
+        scores,
         ...(error ? { error: true } : {}),
       };
     }),
@@ -195,7 +197,7 @@ async function sendEvalResults<Input, Output, Expected>(
           'Content-Type': 'application/json',
           'STATSIG-API-KEY': apiKey,
         },
-        body: JSON.stringify({ dataset: records, name: evalRunName }),
+        body: JSON.stringify({ results: records, name: evalRunName }),
       },
     );
 
