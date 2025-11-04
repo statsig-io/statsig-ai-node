@@ -1,4 +1,7 @@
 import { Eval } from '../evals/Eval';
+import { EvalHooks } from '../evals/EvalHooks';
+import { EvalParameters } from '../evals/EvalParameters';
+import { z } from 'zod';
 
 describe('Eval', () => {
   const ORIGINAL_API_KEY = process.env.STATSIG_API_KEY;
@@ -243,6 +246,50 @@ describe('Eval', () => {
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
+      score: '1',
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-async-task');
+    expect(body.dataset).toEqual(results);
+  });
+
+  test('handles parameters in async task function', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hi Foo' },
+      { input: 'Bar', expected: 'Hello Bar param' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: async (input: string, hooks: EvalHooks<EvalParameters>) =>
+        'Hello ' + input + ' ' + hooks.parameters.name,
+      scorer: ({ output, expected }) => output === (expected as any),
+      evalRunName: 'run-async-task',
+      parameters: {
+        name: z.string().default('param'),
+      },
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hi Foo',
+      output: 'Hello Foo param',
+      score: '0',
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar param',
+      output: 'Hello Bar param',
       score: '1',
     });
     expect(metadata.error).toBe(false);

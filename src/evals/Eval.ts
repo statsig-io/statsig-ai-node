@@ -68,6 +68,19 @@ export interface EvalResult<Input, Output, Expected> {
   metadata: EvalMetadata;
 }
 
+function parseParameters<Parameters extends EvalParameters>(
+  parameters: Parameters,
+): InferParameters<Parameters> {
+  const parsed: any = {};
+  for (const key in parameters) {
+    if (parameters.hasOwnProperty(key)) {
+      // Parse with undefined to trigger default values
+      parsed[key] = parameters[key].parse(undefined);
+    }
+  }
+  return parsed as InferParameters<Parameters>;
+}
+
 export async function Eval<
   Input,
   Output,
@@ -87,6 +100,9 @@ export async function Eval<
   }
 
   const normalizedData = await normalizeEvalData(data);
+  const parsedParameters = parameters
+    ? parseParameters(parameters)
+    : ({} as InferParameters<Parameters>);
 
   const results = await Promise.all(
     normalizedData.map(async (record) => {
@@ -96,7 +112,7 @@ export async function Eval<
 
       try {
         output = await task(record.input, {
-          parameters: parameters as InferParameters<Parameters>,
+          parameters: parsedParameters,
         });
         const rawScore = await scorer({
           input: record.input,
