@@ -1,6 +1,7 @@
 export interface EvalDataRecord<Input, Expected> {
   input: Input;
   expected: Expected;
+  category?: string[] | string;
 }
 
 export type EvalData<Input, Expected> =

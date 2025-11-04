@@ -425,6 +425,65 @@ describe('Eval', () => {
     expect(body.results).toEqual(results);
   });
 
+  test('handle category support', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hello Foo', category: 'category1' },
+      { input: 'Bar', expected: 'Hello Bar', category: 'category1' },
+      { input: 'Baz', expected: 'Hello Bar', category: 'category2' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: (input: string) => 'Hello ' + input,
+      scorer: {
+        correctness: ({ output, expected }) => output === (expected as any),
+      },
+      evalRunName: 'run-category-support',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(3);
+
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hello Foo',
+      output: 'Hello Foo',
+      scores: {
+        correctness: '1',
+      },
+      category: 'category1',
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      scores: {
+        correctness: '1',
+      },
+      category: 'category1',
+    });
+    expect(results[2]).toMatchObject({
+      input: 'Baz',
+      expected: 'Hello Bar',
+      output: 'Hello Baz',
+      scores: {
+        correctness: '0',
+      },
+      category: 'category2',
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-category-support');
+    expect(body.results).toEqual(results);
+  });
+
   test('handles scorer failure in multiple scorers gracefully', async () => {
     const dataset = [{ input: 'Test', expected: 'Hello Test' }];
 

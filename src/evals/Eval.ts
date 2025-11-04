@@ -5,7 +5,7 @@ import {
 } from './EvalParameters';
 import { EvalHooks } from './EvalHooks';
 import { EvalData, EvalDataRecord } from './EvalData';
-import { EvalScorers, ScorerFunction } from './EvalScorer';
+import { EvalScorers, ScorerFunction, ScorerFunctionArgs } from './EvalScorer';
 
 const STATSIG_POST_EVAL_ENDPOINT =
   'https://api.statsig.com/console/v1/evals/send_results';
@@ -43,7 +43,17 @@ export interface EvalResultRecord<Input, Output, Expected> {
   expected: Expected;
   output: Output;
   scores: Record<string, string>;
+  category?: string[] | string;
 }
+
+// Internal type used during eval execution that includes error tracking
+type InternalEvalResultRecord<Input, Output, Expected> = EvalResultRecord<
+  Input,
+  Output,
+  Expected
+> & {
+  error?: boolean;
+};
 
 export interface EvalMetadata {
   error: boolean;
@@ -88,58 +98,58 @@ export async function Eval<
     throw new Error('[Statsig] Invalid scorer provided.');
   }
 
-  const results = await Promise.all(
-    normalizedData.map(async (record) => {
-      let output: Output | undefined;
-      let scores: Record<string, string> = {};
-      let error = false;
+  const results: InternalEvalResultRecord<Input, Output, Expected>[] =
+    await Promise.all(
+      normalizedData.map(async (record) => {
+        let output: Output | undefined;
+        let scores: Record<string, string> = {};
+        let error = false;
 
-      try {
-        output = await task(record.input, {
-          parameters: parsedParameters,
-        });
+        try {
+          output = await task(record.input, {
+            parameters: parsedParameters,
+            category: record.category ?? '',
+          });
 
-        const scorerArgs = {
-          input: record.input,
-          expected: record.expected,
-          output,
-        };
+          const scorerArgs = {
+            ...record,
+            output,
+          } as ScorerFunctionArgs<Input, Output, Expected>;
 
-        await Promise.all(
-          Object.entries(normalizedScorer).map(async ([name, scorerFn]) => {
-            try {
-              const rawScore = await scorerFn(scorerArgs);
-              const normalizedScore =
-                typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
-              scores[name] = normalizedScore.toString();
-            } catch (err) {
-              console.warn(
-                `[Statsig] Scorer '${name}' failed:`,
-                record.input,
-                err,
-              );
-              scores[name] = '0';
-            }
-          }),
-        );
-      } catch (err) {
-        console.warn('[Statsig] Eval failed:', record.input, err);
-        if (output === undefined) {
-          output = '[Error]' as unknown as Output;
+          await Promise.all(
+            Object.entries(normalizedScorer).map(async ([name, scorerFn]) => {
+              try {
+                const rawScore = await scorerFn(scorerArgs);
+                const normalizedScore =
+                  typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
+                scores[name] = normalizedScore.toString();
+              } catch (err) {
+                console.warn(
+                  `[Statsig] Scorer '${name}' failed:`,
+                  record.input,
+                  err,
+                );
+                scores[name] = '0';
+              }
+            }),
+          );
+        } catch (err) {
+          console.warn('[Statsig] Eval failed:', record.input, err);
+          if (output === undefined) {
+            output = '[Error]' as unknown as Output;
+          }
+          error = true;
+          scores = {};
         }
-        error = true;
-        scores = {};
-      }
 
-      return {
-        input: record.input,
-        expected: record.expected,
-        output,
-        scores,
-        ...(error ? { error: true } : {}),
-      };
-    }),
-  );
+        return {
+          ...record,
+          output,
+          scores,
+          ...(error ? { error: true } : {}),
+        } as InternalEvalResultRecord<Input, Output, Expected>;
+      }),
+    );
 
   await sendEvalResults(name, results, apiKey, evalRunName);
   return {
@@ -180,7 +190,7 @@ async function normalizeEvalData<Input, Expected>(
 
 async function sendEvalResults<Input, Output, Expected>(
   name: string,
-  records: EvalResultRecord<Input, Output, Expected>[],
+  records: InternalEvalResultRecord<Input, Output, Expected>[],
   apiKey: string,
   evalRunName?: string,
 ): Promise<void> {
