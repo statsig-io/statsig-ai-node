@@ -42,7 +42,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-123',
     });
 
@@ -94,7 +96,7 @@ describe('Eval', () => {
         }
         return 'Hello ' + input;
       },
-      scorer: () => 0,
+      scorer: { Grader: () => 0 },
       evalRunName: 'run-errors',
     });
 
@@ -123,7 +125,9 @@ describe('Eval', () => {
       Eval('test task', {
         data: () => [{ input: 'x', expected: 'Hi x' }],
         task: (input: string) => 'Hello ' + input,
-        scorer: ({ output, expected }) => output === (expected as any),
+        scorer: {
+          Grader: ({ output, expected }) => output === (expected as any),
+        },
       }),
     ).rejects.toThrow(/Missing Statsig Console API key/);
   });
@@ -134,7 +138,9 @@ describe('Eval', () => {
         // @ts-expect-error - data is not a valid type
         data: 'not an array',
         task: (input: string) => 'Hello ' + input,
-        scorer: ({ output, expected }) => output === (expected as any),
+        scorer: {
+          Grader: ({ output, expected }) => output === (expected as any),
+        },
       }),
     ).rejects.toThrow(/Invalid type provided to data parameter/);
   });
@@ -148,7 +154,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: Promise.resolve(dataset),
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-promise',
     });
 
@@ -190,7 +198,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: async () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-data',
     });
 
@@ -230,7 +240,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: async (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-task',
     });
 
@@ -271,7 +283,9 @@ describe('Eval', () => {
       data: () => dataset,
       task: async (input: string, hooks: EvalHooks<EvalParameters>) =>
         'Hello ' + input + ' ' + hooks.parameters.name,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-task',
       parameters: {
         name: z.string().default('param'),
@@ -314,7 +328,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: async ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: async ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-scorer',
     });
 
