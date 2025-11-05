@@ -42,7 +42,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-123',
     });
 
@@ -94,7 +96,7 @@ describe('Eval', () => {
         }
         return 'Hello ' + input;
       },
-      scorer: () => 0,
+      scorer: { Grader: () => 0 },
       evalRunName: 'run-errors',
     });
 
@@ -123,7 +125,9 @@ describe('Eval', () => {
       Eval('test task', {
         data: () => [{ input: 'x', expected: 'Hi x' }],
         task: (input: string) => 'Hello ' + input,
-        scorer: ({ output, expected }) => output === (expected as any),
+        scorer: {
+          Grader: ({ output, expected }) => output === (expected as any),
+        },
       }),
     ).rejects.toThrow(/Missing Statsig Console API key/);
   });
@@ -134,7 +138,9 @@ describe('Eval', () => {
         // @ts-expect-error - data is not a valid type
         data: 'not an array',
         task: (input: string) => 'Hello ' + input,
-        scorer: ({ output, expected }) => output === (expected as any),
+        scorer: {
+          Grader: ({ output, expected }) => output === (expected as any),
+        },
       }),
     ).rejects.toThrow(/Invalid type provided to data parameter/);
   });
@@ -148,7 +154,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: Promise.resolve(dataset),
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-promise',
     });
 
@@ -190,7 +198,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: async () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-data',
     });
 
@@ -230,7 +240,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: async (input: string) => 'Hello ' + input,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-task',
     });
 
@@ -271,7 +283,9 @@ describe('Eval', () => {
       data: () => dataset,
       task: async (input: string, hooks: EvalHooks<EvalParameters>) =>
         'Hello ' + input + ' ' + hooks.parameters.name,
-      scorer: ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-task',
       parameters: {
         name: z.string().default('param'),
@@ -314,7 +328,9 @@ describe('Eval', () => {
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
-      scorer: async ({ output, expected }) => output === (expected as any),
+      scorer: {
+        Grader: async ({ output, expected }) => output === (expected as any),
+      },
       evalRunName: 'run-async-scorer',
     });
 
@@ -406,6 +422,65 @@ describe('Eval', () => {
     );
     const body = JSON.parse(req?.body as string);
     expect(body.name).toBe('run-multiple-scorers');
+    expect(body.results).toEqual(results);
+  });
+
+  test('handle category support', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hello Foo', category: 'category1' },
+      { input: 'Bar', expected: 'Hello Bar', category: 'category1' },
+      { input: 'Baz', expected: 'Hello Bar', category: 'category2' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: (input: string) => 'Hello ' + input,
+      scorer: {
+        correctness: ({ output, expected }) => output === (expected as any),
+      },
+      evalRunName: 'run-category-support',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(3);
+
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hello Foo',
+      output: 'Hello Foo',
+      scores: {
+        correctness: '1',
+      },
+      category: 'category1',
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      scores: {
+        correctness: '1',
+      },
+      category: 'category1',
+    });
+    expect(results[2]).toMatchObject({
+      input: 'Baz',
+      expected: 'Hello Bar',
+      output: 'Hello Baz',
+      scores: {
+        correctness: '0',
+      },
+      category: 'category2',
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-category-support');
     expect(body.results).toEqual(results);
   });
 
