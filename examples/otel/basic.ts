@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api';
-import { initializeOtel } from '../../src';
+import { initializeTracing } from '../../src';
 import { wrapOpenAI } from '../../src';
 
 import { Statsig } from '@statsig/statsig-node-core';
@@ -10,7 +10,7 @@ import { OpenAI } from 'openai';
 // if you don't have your own otel setup, this will get you started
 // with a trace provider and Statsig OTLP exporter
 // it also sets up a global trace provider
-const { provider } = initializeOtel({
+const { provider } = initializeTracing({
   serviceName: 'statsig-ai',
   enableGlobalTraceProviderRegistration: true,
   exporterOptions: {
@@ -31,7 +31,7 @@ function waitFor(ms: number) {
 async function main() {
   await statsig.initialize();
 
-  // initializeOtel setups a global trace provider by default
+  // initializeTracing setups a global trace provider by default
   // allowing you to get tracers from anywhere in your app
   await tracer.startActiveSpan('example-span', async (span) => {
     span.setAttribute('example-attribute', 'example-value');

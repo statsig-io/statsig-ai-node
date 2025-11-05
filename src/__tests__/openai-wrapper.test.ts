@@ -3,7 +3,7 @@ import { DefaultMockResponses, MockOpenAI } from './MockOpenAI';
 import fs from 'fs';
 import OpenAI from 'openai';
 import path from 'path';
-import { initializeTracing, StatsigAI } from '..';
+import { initializeTracing, StatsigAI } from '../index';
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../wrappers/openai';
 import { OpenAILike } from '../wrappers/openai-configs';

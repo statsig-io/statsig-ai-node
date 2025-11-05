@@ -1,170 +1,54 @@
 import {
-  Statsig,
-  StatsigOptions,
-  StatsigUser,
-} from '@statsig/statsig-node-core';
+  StatsigAIInstance,
+  StatsigCreateConfig,
+  StatsigAttachConfig,
+  StatsigSourceConfig,
+} from './StatsigAIInstance';
 
-import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
-import { AIEvalGradeData } from './AIGradingData';
-import { makePrompt, Prompt } from './prompts/Prompt';
-import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
-import { PromptVersion } from './prompts/PromptVersion';
-import { OtelSingleton } from './otel/singleton';
+export class StatsigAI extends StatsigAIInstance {
+  private static _sharedAIStatsigInstance: StatsigAI | null = null;
 
-export interface StatsigCreateConfig {
-  sdkKey: string;
-  statsigOptions?: StatsigOptions;
-  statsig?: never;
-}
-
-export interface StatsigAttachConfig {
-  statsig: Statsig;
-  statsigOptions?: never;
-}
-
-export type StatsigSourceConfig = StatsigCreateConfig | StatsigAttachConfig;
-
-export class StatsigAIInstance {
-  private _statsig: Statsig;
-  private _ownsStatsigInstance: boolean = false;
-
-  constructor(statsigSource: StatsigSourceConfig) {
-    if ('statsig' in statsigSource && statsigSource.statsig) {
-      const { statsig } = statsigSource;
-      this._statsig = statsig;
-      this._ownsStatsigInstance = false;
-    } else {
-      const { sdkKey, statsigOptions } = statsigSource;
-      this._statsig = new Statsig(sdkKey, statsigOptions);
-      this._ownsStatsigInstance = true;
-    }
-  }
-
-  async initialize(): Promise<void> {
-    if (this._ownsStatsigInstance) {
-      await this._statsig.initialize();
-    }
-  }
-
-  async flushEvents(): Promise<void> {
-    if (this._ownsStatsigInstance) {
-      await this._statsig.flushEvents();
-    }
-    await OtelSingleton.flushInstance();
-  }
-
-  async shutdown(): Promise<void> {
-    if (this._ownsStatsigInstance) {
-      await this._statsig.shutdown();
-    }
-  }
-
-  getStatsig(): Statsig {
-    return this._statsig;
-  }
-
-  getPrompt(
-    user: StatsigUser,
-    promptName: string,
-    _options?: PromptEvaluationOptions,
-  ): Prompt {
-    const MAX_DEPTH = 300;
-    let depth = 0;
-
-    const baseParamStoreName = `prompt:${promptName}`;
-    let currentParamStoreName = baseParamStoreName;
-
-    let nextParamStoreName = this._statsig
-      .getParameterStore(user, currentParamStoreName)
-      .getValue('prompt_targeting_rules', '');
-
-    while (
-      nextParamStoreName !== '' &&
-      nextParamStoreName !== currentParamStoreName &&
-      depth < MAX_DEPTH
-    ) {
-      const nextParamStore = this._statsig.getParameterStore(
-        user,
-        nextParamStoreName,
-      );
-      const possibleNextParamStoreName = nextParamStore.getValue(
-        'prompt_targeting_rules',
-        '',
-      );
-
-      if (
-        possibleNextParamStoreName === '' ||
-        possibleNextParamStoreName === nextParamStoreName
-      ) {
-        currentParamStoreName = nextParamStoreName;
-        break;
-      }
-
-      currentParamStoreName = nextParamStoreName;
-      nextParamStoreName = possibleNextParamStoreName;
-
-      depth++;
-    }
-
-    if (depth >= MAX_DEPTH) {
-      currentParamStoreName = baseParamStoreName;
+  public static shared(): StatsigAI {
+    if (!StatsigAI.hasShared()) {
       console.warn(
-        `[Statsig] Max targeting depth (${MAX_DEPTH}) reached while resolving prompt: ${promptName}. ` +
-          `Possible circular reference starting from "${baseParamStoreName}".`,
+        '[Statsig] No shared instance has been created yet. Call newShared() before using it. Returning an invalid instance',
       );
+      return StatsigAI._createErrorStatsigAIInstance();
     }
-
-    const finalParamStore = this._statsig.getParameterStore(
-      user,
-      currentParamStoreName,
-    );
-
-    const currentPromptName = currentParamStoreName.split(':')[1];
-
-    return makePrompt(this._statsig, currentPromptName, finalParamStore, user);
+    return StatsigAI._sharedAIStatsigInstance!;
   }
 
-  getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
-    const agentParameterStore = this._statsig.getParameterStore(
-      user,
-      `agent:${agentConfigName}`,
-    );
-
-    return makeAgentConfig(
-      this._statsig,
-      user,
-      agentConfigName,
-      agentParameterStore,
-    );
+  public static hasShared(): boolean {
+    return StatsigAI._sharedAIStatsigInstance !== null;
   }
 
-  logEvalGrade(
-    user: StatsigUser,
-    promptVersion: PromptVersion,
-    score: number,
-    graderName: string,
-    evalData: AIEvalGradeData,
-  ): void {
-    const { sessionId } = evalData;
-    if (score < 0 || score > 1) {
+  public static newShared(statsigInitConfig: StatsigCreateConfig): StatsigAI;
+
+  public static newShared(
+    statsigInstanceConfig: StatsigAttachConfig,
+  ): StatsigAI;
+
+  public static newShared(statsigSource: StatsigSourceConfig): StatsigAI {
+    if (StatsigAI.hasShared()) {
       console.warn(
-        `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
+        '[Statsig] Shared instance has been created, call removeSharedInstance() if you want to create another one. ' +
+          'Returning an invalid instance',
       );
-      return;
+      return StatsigAI._createErrorStatsigAIInstance();
     }
 
-    this._statsig.logEvent(
-      user,
-      'statsig::eval_result',
-      promptVersion.getPromptName(),
-      {
-        score: score.toString(),
-        session_id: sessionId ?? '',
-        version_name: promptVersion.getName(),
-        version_id: promptVersion.getID(),
-        grader_id: graderName,
-        ai_config_name: promptVersion.getPromptName(),
-      },
-    );
+    StatsigAI._sharedAIStatsigInstance = new StatsigAI(statsigSource);
+
+    return StatsigAI._sharedAIStatsigInstance;
+  }
+
+  public static removeSharedInstance() {
+    StatsigAI._sharedAIStatsigInstance = null;
+  }
+
+  private static _createErrorStatsigAIInstance(): StatsigAI {
+    const dummyInstance = new StatsigAI({ sdkKey: 'INVALID-KEY' });
+    dummyInstance.shutdown();
+    return dummyInstance;
   }
 }

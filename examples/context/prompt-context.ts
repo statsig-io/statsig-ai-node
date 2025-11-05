@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai';
 
 import {
-  initializeOtel,
+  initializeTracing,
   wrapOpenAI,
   withStatsigUserContext,
   StatsigUser,
@@ -10,7 +10,7 @@ import {
 } from '../../src/';
 import { trace } from '@opentelemetry/api';
 
-const { provider } = initializeOtel({
+const { provider } = initializeTracing({
   serviceName: 'statsig-ai-user-context',
   exporterOptions: {
     sdkKey: process.env.STATSIG_SDK_KEY!,
@@ -18,7 +18,7 @@ const { provider } = initializeOtel({
 });
 
 const statsig = new Statsig(process.env.STATSIG_SDK_KEY!);
-const ai = new StatsigAI(process.env.STATSIG_SDK_KEY!, statsig);
+const ai = new StatsigAI({ sdkKey: process.env.STATSIG_SDK_KEY! });
 
 const tracer = trace.getTracer('user-context-example-tracer');
 const openai = wrapOpenAI(new OpenAI());

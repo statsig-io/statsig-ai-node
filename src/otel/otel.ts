@@ -76,7 +76,7 @@ export function initializeTracing(
         [
           `Could not automatically set up a global OTEL context manager.`,
           `This may be expected if you have (or another imported library has) already set a global context manager.`,
-          `You can skip this message by passing "skipGlobalContextManagerSetup: true" into your initializeOtel call.`,
+          `You can skip this message by passing "skipGlobalContextManagerSetup: true" into your initializeTracing call.`,
         ].join('\n'),
       );
     }
