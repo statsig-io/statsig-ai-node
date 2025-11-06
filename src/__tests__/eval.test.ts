@@ -139,7 +139,7 @@ describe('Eval', () => {
         data: 'not an array',
         task: (input: string) => 'Hello ' + input,
         scorer: {
-          Grader: ({ output, expected }) => output === (expected as any),
+          Grader: ({ output }) => output === 'Hello Foo',
         },
       }),
     ).rejects.toThrow(/Invalid type provided to data parameter/);
@@ -271,6 +271,85 @@ describe('Eval', () => {
     const body = JSON.parse(req?.body as string);
     expect(body.name).toBe('run-async-task');
     expect(body.results).toEqual(results);
+  });
+
+  test('handles data without expected field', async () => {
+    const dataset = [{ input: 'Foo' }, { input: 'Bar' }];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: async (input: string) => 'Hello ' + input,
+      scorer: {
+        Grader: ({ output }) => output === 'Hello Foo',
+      },
+      evalRunName: 'run-no-expected',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      output: 'Hello Foo',
+      scores: { Grader: '1' },
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      output: 'Hello Bar',
+      scores: { Grader: '0' },
+    });
+    expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-no-expected');
+    expect(body.results).toEqual(results);
+  });
+
+  test('handles scorer that accesses missing expected field gracefully', async () => {
+    const dataset = [{ input: 'Foo' }, { input: 'Bar' }];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: async (input: string) => 'Hello ' + input,
+      scorer: {
+        Grader: ({ output, expected }: any) => {
+          // This will throw because expected is undefined
+          return expected.toLowerCase() === output;
+        },
+      },
+      evalRunName: 'run-missing-expected',
+    });
+
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      output: 'Hello Foo',
+      scores: { Grader: '0' },
+    });
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      output: 'Hello Bar',
+      scores: { Grader: '0' },
+    });
+
+    expect(metadata.error).toBe(false);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Statsig] Scorer 'Grader' failed:",
+      'Foo',
+      expect.any(TypeError),
+    );
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Statsig] Scorer 'Grader' failed:",
+      'Bar',
+      expect.any(TypeError),
+    );
   });
 
   test('handles parameters in async task function', async () => {
