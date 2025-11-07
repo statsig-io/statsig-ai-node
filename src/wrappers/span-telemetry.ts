@@ -1,5 +1,9 @@
 import { AttributeValue, Span, SpanStatusCode } from '@opentelemetry/api';
 import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
+import {
+  extractResponseAttributes,
+  extractUsageAttributes,
+} from './attribute-helper';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
 const PLACEHOLDER_STATSIG_USER = new StatsigUser({
@@ -26,33 +30,41 @@ export class SpanTelemetry {
       if (value === undefined) {
         continue;
       }
-      this.span.setAttribute(key, value);
-      this.metadata[key] = attributeValueToMetadata(value);
+      if (typeof value === 'object' && value !== null) {
+        this.setJSON(key, value);
+        continue;
+      }
+      this.setAttributeOnSpanAndMetadata(key, value);
     }
   }
 
   public setJSON(key: string, value: any): void {
     try {
       const json = JSON.stringify(value ?? null);
-      const truncated =
-        json.length > this.maxJSONChars
-          ? json.slice(0, this.maxJSONChars) + '…(truncated)'
-          : json;
-      this.setAttributes({ [key]: truncated });
-      if (json.length > this.maxJSONChars) {
-        this.setAttributes({ [`${key}_truncated`]: true });
-        this.setAttributes({ [`${key}_len`]: json.length });
+      const isTruncated = json.length > this.maxJSONChars;
+
+      this.setAttributeOnSpanAndMetadata(
+        key,
+        isTruncated ? json.slice(0, this.maxJSONChars) + '…(truncated)' : json,
+      );
+      if (isTruncated) {
+        this.setAttributeOnSpanAndMetadata(`${key}_len`, json.length);
       }
     } catch {
-      this.setAttributes({ [key]: '[[unserializable]]' });
+      this.setAttributeOnSpanAndMetadata(key, '[[unserializable]]');
     }
   }
 
-  public setUsage(usage: any): void {
-    if (!usage) {
-      return;
-    }
-    this.setAttributes(usageAttrs(usage));
+  private setAttributeOnSpanAndMetadata(
+    key: string,
+    value: AttributeValue,
+  ): void {
+    this.span.setAttribute(key, value);
+    this.metadata[key] = attributeValueToMetadata(value);
+  }
+
+  public setUsage(usage: Record<string, any>): void {
+    this.setAttributes(extractUsageAttributes(usage));
   }
 
   public setStatus(status: { code: SpanStatusCode; message?: string }): void {
@@ -64,6 +76,10 @@ export class SpanTelemetry {
     if (status.message) {
       this.metadata['span.status_message'] = String(status.message);
     }
+  }
+
+  public setResponseAttributes(response: any): void {
+    this.setAttributes(extractResponseAttributes(response));
   }
 
   public recordException(error: any): void {
@@ -108,19 +124,12 @@ export class SpanTelemetry {
       return;
     }
 
-    try {
-      statsig.logEvent(
-        PLACEHOLDER_STATSIG_USER,
-        GEN_AI_EVENT_NAME,
-        spanName,
-        metadata,
-      );
-    } catch (err: any) {
-      console.warn(
-        '[Statsig] Failed to log span event.',
-        err?.message ?? String(err),
-      );
-    }
+    statsig.logEvent(
+      PLACEHOLDER_STATSIG_USER,
+      GEN_AI_EVENT_NAME,
+      spanName,
+      metadata,
+    );
   }
 }
 
@@ -154,16 +163,6 @@ function safeStringify(value: any): string {
   } catch {
     return String(value);
   }
-}
-
-function usageAttrs(usage: any) {
-  return usage
-    ? {
-        'gen_ai.usage.prompt_tokens': usage?.prompt_tokens,
-        'gen_ai.usage.completion_tokens': usage?.completion_tokens,
-        'gen_ai.usage.total_tokens': usage?.total_tokens,
-      }
-    : {};
 }
 
 // Internal: logs span event to Statsig if available
