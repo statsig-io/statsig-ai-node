@@ -74,11 +74,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   });
 
   it('should send traces and events when calling chat.completions.create', async () => {
-    // const openai = new MockOpenAI();
-    const openai = new OpenAI({
-      apiKey:
-        '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',
-    });
+    const openai = new MockOpenAI();
     StatsigAI.newShared({
       sdkKey: 'secret-test-key',
       statsigOptions: options,
@@ -86,8 +82,8 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     await StatsigAI.shared().initialize();
     const wrappedOpenAI = wrapOpenAI(openai as OpenAILike);
 
-    const response = await wrappedOpenAI.chat.completions.create({
-      model: 'gpt-4',
+    const response = await wrappedOpenAI.completions.create({
+      model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello, world!' }],
       temperature: 0.7,
       max_tokens: 100,

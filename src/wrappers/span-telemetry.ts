@@ -27,9 +27,10 @@ export class SpanTelemetry {
 
   public setAttributes(kv: Record<string, AttributeValue | undefined>): void {
     for (const [key, value] of Object.entries(kv)) {
-      if (value === undefined) {
+      if (value === undefined || value === null) {
         continue;
       }
+
       if (typeof value === 'object' && value !== null) {
         this.setJSON(key, value);
         continue;

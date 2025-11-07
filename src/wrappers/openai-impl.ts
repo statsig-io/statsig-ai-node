@@ -33,7 +33,7 @@ export class StatsigOpenAIProxy {
   public openai: OpenAILike;
   public tracer: Tracer;
   private _redact?: (obj: any) => any;
-  private _ensureStreamUsage: boolean;
+  private _ensureStreamUsage = false;
   private _maxJSONChars: number;
   private _customAttributes?: Record<string, AttributeValue>;
 
@@ -42,8 +42,6 @@ export class StatsigOpenAIProxy {
     this.tracer = OtelSingleton.getInstance()
       .getTracerProvider()
       .getTracer('statsig-openai-proxy');
-    this._redact = config.redact;
-    this._ensureStreamUsage = config.ensureStreamUsage ?? true;
     this._maxJSONChars = config.maxJSONChars ?? 40_000;
     this._customAttributes = config.customAttributes;
   }

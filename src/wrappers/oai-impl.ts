@@ -13,23 +13,17 @@ import {
   StatsigOpenAIProxyConfig,
 } from './openai-configs';
 import {
-  STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_LLM_PROMPT_NAME,
   STATSIG_ATTR_LLM_PROMPT_VERSION,
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
-  STATSIG_ATTR_USER_ID,
   STATSIG_CTX_KEY_ACTIVE_PROMPT,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigSpanType,
 } from '../otel/conventions';
 import { OtelSingleton } from '../otel/singleton';
-import { getUserFromContext } from '../otel/user-context';
-import {
-  extractBaseAttributes,
-  extractUsageAttributes,
-} from './attribute-helper';
+import { extractBaseAttributes } from './attribute-helper';
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
@@ -66,7 +60,7 @@ export class StatsigOpenAIProxy {
       get(target, name, recv) {
         const original = Reflect.get(target, name, recv);
         if (name === 'create') {
-          return self.wrapPotentialStreamMethod(
+          return self.wrapMaybeStreamMethod(
             original.bind(target),
             'text_completion',
           );
@@ -77,28 +71,75 @@ export class StatsigOpenAIProxy {
 
     const chat = new Proxy(this.openai.chat, {
       get(target, name, recv) {
-        console.log('name in proxy', name);
-        const original = Reflect.get(target, name, recv);
-        console.log('original', original);
         if (name === 'completions') {
-          return self.wrapPotentialStreamMethod(original.bind(target), 'chat');
+          const completionsTarget = Reflect.get(target, name, recv);
+
+          return new Proxy(completionsTarget, {
+            get(innerTarget, innerName, innerRecv) {
+              const original = Reflect.get(innerTarget, innerName, innerRecv);
+              if (innerName === 'create') {
+                return self.wrapMaybeStreamMethod(
+                  original.bind(innerTarget),
+                  'chat',
+                );
+              }
+              return original;
+            },
+          });
+        }
+
+        return Reflect.get(target, name, recv);
+      },
+    });
+
+    const embeddings = new Proxy(this.openai.embeddings, {
+      get(target, name, recv) {
+        const original = Reflect.get(target, name, recv);
+        if (name === 'create') {
+          return self.wrapMethod(original.bind(target), 'embeddings');
         }
         return original;
       },
     });
 
-    const embeddings = {};
+    const images = new Proxy(this.openai.images, {
+      get(target, name, recv) {
+        const original = Reflect.get(target, name, recv);
+        if (name === 'generate') {
+          return self.wrapMethod(original.bind(target), 'images.generate');
+        }
+        return original;
+      },
+    });
 
-    const images = {};
-
-    const responses = {};
+    const responses = new Proxy(this.openai.responses, {
+      get(target, name, recv) {
+        const original = Reflect.get(target, name, recv);
+        switch (name) {
+          case 'create':
+            return self.wrapMaybeStreamMethod(
+              original.bind(target),
+              'responses.create',
+            );
+          case 'stream':
+            return self.wrapMaybeStreamMethod(
+              original.bind(target),
+              'responses.stream',
+            );
+          case 'parse':
+            return self.wrapMethod(original.bind(target), 'responses.parse');
+          default:
+            return original;
+        }
+      },
+    });
 
     return new Proxy(this.openai, {
       get: (target, name, recv) => {
         switch (name) {
           case 'chat':
             return chat;
-          case 'completion':
+          case 'completions':
             return completion;
           case 'embeddings':
             return embeddings;
@@ -113,10 +154,7 @@ export class StatsigOpenAIProxy {
     });
   }
 
-  private wrapPotentialStreamMethod<
-    Params extends Record<string, unknown>,
-    Result,
-  >(
+  private wrapMaybeStreamMethod<Params extends Record<string, unknown>, Result>(
     originalCall: (params: Params, options?: unknown) => APIPromise<Result>,
     opName: string,
   ): (params: Params, options?: unknown) => APIPromise<Result> {
@@ -127,16 +165,17 @@ export class StatsigOpenAIProxy {
 
       const spanName = `${opName} ${params.model ?? 'unknown'}`;
 
+      console.log('spanName', spanName);
+
       const ensureTaskRun: () => Promise<ResponseWithData> = () => {
         if (!taskPromise) {
           taskPromise = (async () => {
-            const baseAttrs = extractBaseAttributes(
-              'openai',
+            const t0 = Date.now();
+            const telemetry = this.startSpan(
+              spanName,
               opName,
               params as Record<string, any>,
             );
-            const t0 = Date.now();
-            const telemetry = this.startSpan(spanName, baseAttrs);
             try {
               if (params.stream) {
                 telemetry.setAttributes({ 'gen_ai.request.stream': true });
@@ -194,11 +233,51 @@ export class StatsigOpenAIProxy {
     };
   }
 
+  private wrapMethod<Params extends Record<string, unknown>, Result>(
+    originalCall: (params: Params, options?: unknown) => APIPromise<Result>,
+    opName: string,
+  ): (params: Params, options?: unknown) => Promise<any> {
+    return async (params: Params, options?: unknown) => {
+      const spanName = `${opName} ${params.model ?? 'unknown'}`;
+      const telemetry = this.startSpan(
+        spanName,
+        opName,
+        params as Record<string, any>,
+      );
+      context.with(
+        trace.setSpan(context.active(), telemetry.span),
+        async () => {
+          try {
+            const { data, response } = await originalCall(
+              params,
+              options,
+            ).withResponse();
+            telemetry.setStatus({ code: SpanStatusCode.OK });
+            telemetry.setUsage(data?.usage ?? {});
+            telemetry.setResponseAttributes(response);
+            return data as Result;
+          } catch (e: any) {
+            telemetry.fail(e);
+            throw e;
+          } finally {
+            telemetry.end();
+          }
+        },
+      );
+    };
+  }
+
   private startSpan(
     spanName: string,
-    baseAttrs?: Record<string, AttributeValue>,
+    opName: string,
+    params: Record<string, any>,
   ): SpanTelemetry {
     let ctx = context.active();
+    const baseAttrs = extractBaseAttributes(
+      'openai',
+      opName,
+      params as Record<string, any>,
+    );
     const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
     const statsigAttrs: Record<string, AttributeValue> = {
       [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
