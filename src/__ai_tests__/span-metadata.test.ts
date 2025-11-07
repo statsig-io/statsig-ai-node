@@ -17,7 +17,7 @@ import {
 } from '../otel/conventions';
 import { StatsigSpanProcessor } from '../otel/processor';
 import { wrapOpenAI } from '../wrappers/openai';
-import { MockOpenAI } from './MockOpenAI';
+import { MockOpenAI } from '../__tests__/MockOpenAI';
 
 describe('Span metadata propagation', () => {
   let contextManager: AsyncLocalStorageContextManager;

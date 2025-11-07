@@ -1,4 +1,4 @@
-import { DefaultMockResponses, MockOpenAI } from './MockOpenAI';
+import { DefaultMockResponses, MockOpenAI } from '../__tests__/MockOpenAI';
 
 import fs from 'fs';
 import OpenAI from 'openai';
@@ -7,7 +7,7 @@ import { initializeTracing, StatsigAI } from '../index';
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../wrappers/openai';
 import { OpenAILike } from '../wrappers/openai-configs';
-import { MockScrapi } from './MockScrapi';
+import { MockScrapi } from '../__tests__/MockScrapi';
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import { STATSIG_ATTR_SPAN_TYPE } from '../otel/conventions';
 
