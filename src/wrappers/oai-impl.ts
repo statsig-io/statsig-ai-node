@@ -66,6 +66,7 @@ export class StatsigOpenAIProxy {
           return self.wrapMaybeStreamMethod(
             original.bind(target),
             'text_completion',
+            true,
           );
         }
         return original;
@@ -84,6 +85,7 @@ export class StatsigOpenAIProxy {
                 return self.wrapMaybeStreamMethod(
                   original.bind(innerTarget),
                   'chat',
+                  true,
                 );
               }
               return original;
@@ -157,90 +159,107 @@ export class StatsigOpenAIProxy {
     });
   }
 
+  private async wrapMaybeStream<Params extends Record<string, unknown>, Result>(
+    callFn: (params: Params, options?: unknown) => APIPromise<Result>,
+    params: Params,
+    options: unknown,
+    opName: string,
+  ): Promise<ResponseWithData> {
+    const t0 = Date.now();
+    const spanName = `${opName} ${params.model ?? 'unknown'}`;
+    const telemetry = this.startSpan(
+      spanName,
+      opName,
+      params as Record<string, any>,
+    );
+
+    try {
+      const maybeStream = callFn(params, options);
+
+      if (isAsyncIterable(maybeStream)) {
+        telemetry.setAttributes({ 'gen_ai.request.stream': true });
+        const wrappedStream = this.wrapStreamAndFinish(
+          maybeStream,
+          telemetry,
+          t0,
+        );
+        return { data: wrappedStream };
+      }
+
+      const promise = maybeStream;
+      if (typeof promise.withResponse === 'function') {
+        const { data, response } = await promise.withResponse();
+        telemetry.setStatus({ code: SpanStatusCode.OK });
+        telemetry.setUsage(data?.usage ?? {});
+        telemetry.setResponseAttributes(response);
+        return { data };
+      }
+
+      const data = await promise;
+      telemetry.setStatus({ code: SpanStatusCode.OK });
+      return { data };
+    } catch (e) {
+      telemetry.fail(e);
+      throw e;
+    } finally {
+      telemetry.end();
+    }
+  }
+
+  private lazyWrapPromise<Result>(
+    executor: () => Promise<ResponseWithData>,
+  ): APIPromise<Result> {
+    let taskPromise: Promise<ResponseWithData> | null = null;
+    let dataPromise: Promise<Result> | null = null;
+
+    const ensureTaskRun = (): Promise<ResponseWithData> => {
+      if (!taskPromise) {
+        taskPromise = executor();
+      }
+      return taskPromise;
+    };
+
+    return new Proxy({} as APIPromise<Result>, {
+      get(target, prop, recv) {
+        if (prop === 'withResponse') {
+          return () => ensureTaskRun();
+        }
+
+        if (
+          prop === 'then' ||
+          prop === 'catch' ||
+          prop === 'finally' ||
+          prop in Promise.prototype
+        ) {
+          if (!dataPromise) {
+            dataPromise = ensureTaskRun().then((r) => r.data);
+          }
+          const res = Reflect.get(dataPromise, prop, recv);
+          return typeof res === 'function' ? res.bind(dataPromise) : res;
+        }
+
+        return Reflect.get(target, prop, recv);
+      },
+    });
+  }
+
   private wrapMaybeStreamMethod<
     Params extends Record<string, unknown>,
     Result extends NonStreamingResult | StreamingResult,
   >(
     callFn: (params: Params, options?: unknown) => APIPromise<Result>,
     opName: string,
+    lazy: boolean = false,
   ): (params: Params, options?: unknown) => APIPromise<Result> {
     return (params: Params, options?: unknown) => {
-      let taskPromise: Promise<ResponseWithData> | null = null;
-      let dataPromise: Promise<Result> | null = null;
       params = params ?? ({} as Params);
 
-      const spanName = `${opName} ${params.model ?? 'unknown'}`;
+      const executor = () =>
+        this.wrapMaybeStream(callFn, params, options, opName);
 
-      console.log('spanName', spanName);
-
-      const ensureTaskRun: () => Promise<ResponseWithData> = () => {
-        if (!taskPromise) {
-          taskPromise = (async () => {
-            const t0 = Date.now();
-            const telemetry = this.startSpan(
-              spanName,
-              opName,
-              params as Record<string, any>,
-            );
-            const maybeStream = callFn(params, options);
-
-            if (isAsyncIterable(maybeStream)) {
-              telemetry.setAttributes({ 'gen_ai.request.stream': true });
-              const wrappedStream = this.wrapStreamAndFinish(
-                maybeStream,
-                telemetry,
-                t0,
-              );
-              return { data: wrappedStream };
-            }
-
-            try {
-              const promise = maybeStream;
-              if (typeof promise.withResponse === 'function') {
-                const { data, response } = await promise.withResponse();
-                telemetry.setStatus({ code: SpanStatusCode.OK });
-                telemetry.setUsage(data?.usage ?? {});
-                telemetry.setResponseAttributes(response);
-                return { data };
-              }
-
-              const data = await promise;
-              telemetry.setStatus({ code: SpanStatusCode.OK });
-              return { data };
-            } catch (e) {
-              telemetry.fail(e);
-              throw e;
-            } finally {
-              telemetry.end();
-            }
-          })();
-        }
-
-        return taskPromise as Promise<ResponseWithData>;
-      };
-
-      return new Proxy({} as APIPromise<Result>, {
-        get(target, prop, recv) {
-          if (prop === 'withResponse') {
-            return () => ensureTaskRun();
-          }
-
-          if (
-            prop === 'then' ||
-            prop === 'catch' ||
-            prop === 'finally' ||
-            prop in Promise.prototype
-          ) {
-            if (!dataPromise) {
-              dataPromise = ensureTaskRun().then((r) => r.data);
-            }
-            const res = Reflect.get(dataPromise, prop, recv);
-            return typeof res === 'function' ? res.bind(dataPromise) : res;
-          }
-
-          return Reflect.get(target, prop, recv);
-        },
-      });
+      return lazy
+        ? this.lazyWrapPromise<Result>(executor)
+        : (executor().then((r) => r.data as Result) as APIPromise<Result>);
     };
   }
 
