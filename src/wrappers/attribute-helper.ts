@@ -1,28 +1,6 @@
 import { AttributeValue } from '@opentelemetry/api';
 import { GenAICaptureOptions } from './openai-configs';
 
-export function extractAllGenAIAttributes(
-  providerName: string,
-  operationName: string,
-  params: Record<string, any>,
-  response?: any,
-): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {};
-  Object.assign(
-    attrs,
-    extractBaseAttributes(providerName, operationName, params),
-  );
-
-  // ---------- Provider-specific ----------
-  if (providerName === 'openai') {
-    Object.assign(attrs, extractOpenAIAttributes(params, response));
-  }
-
-  return Object.fromEntries(
-    Object.entries(attrs).filter(([_, v]) => v != null),
-  );
-}
-
 export function extractUsageAttributes(
   usage: Record<string, any>,
 ): Record<string, AttributeValue> {
@@ -36,6 +14,7 @@ export function extractBaseAttributes(
   providerName: string,
   operationName: string,
   params: Record<string, any>,
+  options: GenAICaptureOptions,
 ): Record<string, AttributeValue> {
   const model = params.model;
   const attrs: Record<string, AttributeValue> = {
@@ -56,23 +35,9 @@ export function extractBaseAttributes(
   attrs['gen_ai.request.seed'] = params.seed;
   attrs['gen_ai.conversation.id'] = params.conversation_id;
   attrs['gen_ai.output.type'] = params.response_format?.type;
-  return attrs;
-}
-
-export function extractOptInAttributes(
-  options: GenAICaptureOptions,
-  params: Record<string, any>,
-  response?: any,
-): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {};
   const msgs = params.messages ?? [];
-  const choices = response?.choices ?? [];
-
   if (options.capture_all || options.capture_input_messages) {
     attrs['gen_ai.input.messages'] = msgs;
-  }
-  if (options.capture_all || options.capture_output_messages) {
-    attrs['gen_ai.output.messages'] = choices;
   }
   if (options.capture_all || options.capture_system_instructions) {
     attrs['gen_ai.system.instructions'] = msgs.filter(
@@ -82,12 +47,19 @@ export function extractOptInAttributes(
   if (options.capture_all || options.capture_tool_definitions) {
     attrs['gen_ai.tool.definitions'] = params.tools;
   }
-
+  if (operationName === 'embeddings') {
+    Object.assign(attrs, extractEmbeddingsAttributes(params));
+  }
+  if (providerName === 'openai') {
+    Object.assign(attrs, extractOpenAIRequestAttributes(params));
+  }
   return attrs;
 }
 
 export function extractResponseAttributes(
+  providerName: string,
   response: any,
+  options: GenAICaptureOptions,
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {};
   const res = response ?? {};
@@ -98,18 +70,30 @@ export function extractResponseAttributes(
   );
   if (finishReasons.length)
     attrs['gen_ai.response.finish_reasons'] = finishReasons;
+  if (options.capture_all || options.capture_output_messages) {
+    attrs['gen_ai.output.messages'] = res.choices;
+  }
+  if (providerName === 'openai') {
+    Object.assign(attrs, extractOpenAIResponseAttributes(response));
+  }
   return attrs;
 }
 
-function extractOpenAIAttributes(
+function extractOpenAIRequestAttributes(
   params: Record<string, any>,
-  response?: any,
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {};
   const requestTier = params.service_tier ?? 'auto';
   if (requestTier !== 'auto') {
     attrs['openai.request.service_tier'] = requestTier;
   }
+  return attrs;
+}
+
+function extractOpenAIResponseAttributes(
+  response: any,
+): Record<string, AttributeValue> {
+  const attrs: Record<string, AttributeValue> = {};
   attrs['openai.response.service_tier'] = response?.service_tier;
   attrs['openai.response.system_fingerprint'] = response?.system_fingerprint;
   return attrs;

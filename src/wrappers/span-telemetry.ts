@@ -4,6 +4,7 @@ import {
   extractResponseAttributes,
   extractUsageAttributes,
 } from './attribute-helper';
+import { GenAICaptureOptions } from './openai-configs';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
 const PLACEHOLDER_STATSIG_USER = new StatsigUser({
@@ -79,8 +80,14 @@ export class SpanTelemetry {
     }
   }
 
-  public setResponseAttributes(response: any): void {
-    this.setAttributes(extractResponseAttributes(response));
+  public setResponseAttributes(
+    providerName: string,
+    response: any,
+    options: GenAICaptureOptions,
+  ): void {
+    this.setAttributes(
+      extractResponseAttributes(providerName, response, options),
+    );
   }
 
   public recordException(error: any): void {
@@ -188,4 +195,36 @@ function getStatsigInstanceForLogging(): Statsig | null {
   }
 
   return null;
+}
+
+export class TelemetryStream<T> implements AsyncIterable<T> {
+  constructor(
+    private source: AsyncIterable<T>,
+    private telemetry: SpanTelemetry,
+    private t0: number,
+  ) {}
+
+  async *[Symbol.asyncIterator]() {
+    let first = true;
+    const all: T[] = [];
+    try {
+      for await (const item of this.source) {
+        if (first) {
+          this.telemetry.setAttributes({
+            'gen_ai.metrics.time_to_first_token_ms': Date.now() - this.t0,
+          });
+          first = false;
+        }
+        all.push(item);
+        //todo: need to send an array of response items
+        yield item;
+      }
+      this.telemetry.setStatus({ code: SpanStatusCode.OK });
+    } catch (e) {
+      this.telemetry.fail(e);
+      throw e;
+    } finally {
+      this.telemetry.end();
+    }
+  }
 }

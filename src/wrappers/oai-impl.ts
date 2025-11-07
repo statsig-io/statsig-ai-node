@@ -6,7 +6,7 @@ import {
   context,
   trace,
 } from '@opentelemetry/api';
-import { SpanTelemetry } from './span-telemetry';
+import { SpanTelemetry, TelemetryStream } from './span-telemetry';
 import {
   GenAICaptureOptions,
   OpenAILike,
@@ -44,7 +44,7 @@ export class StatsigOpenAIProxy {
   public tracer: Tracer;
   private _maxJSONChars: number;
   private _customAttributes?: Record<string, AttributeValue>;
-  private _captureOptions?: GenAICaptureOptions;
+  private _captureOptions: GenAICaptureOptions;
 
   constructor(openai: OpenAILike, config: StatsigOpenAIProxyConfig) {
     this.openai = openai;
@@ -53,7 +53,7 @@ export class StatsigOpenAIProxy {
       .getTracer('statsig-openai-proxy');
     this._maxJSONChars = config.maxJSONChars ?? 40_000;
     this._customAttributes = config.customAttributes;
-    this._captureOptions = config.captureOptions;
+    this._captureOptions = config.captureOptions ?? {};
   }
 
   get client(): OpenAILike {
@@ -178,11 +178,7 @@ export class StatsigOpenAIProxy {
 
       if (isAsyncIterable(maybeStream)) {
         telemetry.setAttributes({ 'gen_ai.request.stream': true });
-        const wrappedStream = this.wrapStreamAndFinish(
-          maybeStream,
-          telemetry,
-          t0,
-        );
+        const wrappedStream = this.wrapStream(maybeStream, telemetry, t0);
         return { data: wrappedStream };
       }
 
@@ -191,7 +187,11 @@ export class StatsigOpenAIProxy {
         const { data, response } = await promise.withResponse();
         telemetry.setStatus({ code: SpanStatusCode.OK });
         telemetry.setUsage(data?.usage ?? {});
-        telemetry.setResponseAttributes(response);
+        telemetry.setResponseAttributes(
+          'openai',
+          response,
+          this._captureOptions,
+        );
         return { data };
       }
 
@@ -290,7 +290,13 @@ export class StatsigOpenAIProxy {
             }
             telemetry.setStatus({ code: SpanStatusCode.OK });
             telemetry.setUsage((data as any)?.usage ?? {});
-            if (response) telemetry.setResponseAttributes(response);
+            if (response) {
+              telemetry.setResponseAttributes(
+                'openai',
+                response,
+                this._captureOptions,
+              );
+            }
             return data as Result;
           } catch (e: any) {
             telemetry.fail(e);
@@ -303,46 +309,22 @@ export class StatsigOpenAIProxy {
     };
   }
 
-  private wrapStreamAndFinish<T>(
+  private wrapStream<T>(
     stream: AsyncIterable<T>,
     telemetry: SpanTelemetry,
     t0: number,
   ) {
-    const origIter = (stream as any)[Symbol.asyncIterator]?.bind(stream);
-    if (!origIter) return stream;
-
-    let first = true;
-    const all: T[] = [];
-
     const wrapped = new Proxy(stream as any, {
       get(target, prop, recv) {
         if (prop === Symbol.asyncIterator) {
-          return async function* () {
-            try {
-              for await (const chunk of origIter()) {
-                if (first) {
-                  telemetry.setAttributes({
-                    'gen_ai.metrics.time_to_first_token_ms': Date.now() - t0,
-                  });
-                  first = false;
-                }
-                all.push(chunk);
-                yield chunk;
-              }
-              telemetry.setStatus({ code: SpanStatusCode.OK });
-            } catch (e: any) {
-              telemetry.fail(e);
-              throw e;
-            } finally {
-              telemetry.end();
-            }
-          };
+          return () =>
+            new TelemetryStream(stream, telemetry, t0)[Symbol.asyncIterator]();
         }
         return Reflect.get(target, prop, recv);
       },
     });
 
-    return wrapped as typeof stream;
+    return wrapped as AsyncIterable<T>;
   }
 
   private startSpan(
@@ -355,6 +337,7 @@ export class StatsigOpenAIProxy {
       'openai',
       opName,
       params as Record<string, any>,
+      this._captureOptions ?? {},
     );
     const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
     const statsigAttrs: Record<string, AttributeValue> = {
