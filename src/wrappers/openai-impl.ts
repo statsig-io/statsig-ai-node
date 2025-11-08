@@ -190,21 +190,9 @@ export class StatsigOpenAIProxy {
       }
     }
 
-    try {
-      const promise = maybeStream;
-      const data = await promise;
-      telemetry.recordTimeToFirstToken();
-      telemetry.setStatus({ code: SpanStatusCode.OK });
-      telemetry.setAttributes(
-        extractSingleOAIResponseAttributes(data ?? {}, this._captureOptions),
-      );
-      return { data };
-    } catch (e) {
-      telemetry.fail(e);
-      throw e;
-    } finally {
-      telemetry.end();
-    }
+    const wrappedNonStreamMethod = this.wrapMethod(callFn, opName);
+    const data = await wrappedNonStreamMethod(params, options);
+    return { data };
   }
 
   private lazyWrapPromise<Result>(
@@ -279,16 +267,7 @@ export class StatsigOpenAIProxy {
         trace.setSpan(context.active(), telemetry.span),
         async () => {
           try {
-            const apip = originalCall(params, options);
-            let data: any;
-            let response: Response | undefined;
-            if (typeof apip.withResponse === 'function') {
-              const r = await apip.withResponse();
-              data = r.data;
-              response = r.response;
-            } else {
-              data = await apip;
-            }
+            const data = await originalCall(params, options);
             telemetry.setStatus({ code: SpanStatusCode.OK });
             telemetry.recordTimeToFirstToken();
             telemetry.setAttributes(
@@ -297,7 +276,7 @@ export class StatsigOpenAIProxy {
                 this._captureOptions,
               ),
             );
-            return data as Result;
+            return data;
           } catch (e: any) {
             telemetry.fail(e);
             throw e;

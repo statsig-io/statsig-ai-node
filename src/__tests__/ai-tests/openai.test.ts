@@ -3,10 +3,8 @@ import OpenAI from 'openai';
 import { initializeTracing, StatsigAI } from '../../index';
 import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../../wrappers/openai';
-import { OpenAILike } from '../../wrappers/openai-configs';
 import { MockScrapi } from '../shared/MockScrapi';
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
-import { STATSIG_ATTR_SPAN_TYPE } from '../../otel/conventions';
 import {
   getDCSFilePath,
   validateOtelClientSpanBasics,
@@ -61,8 +59,9 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     await StatsigAI.shared().initialize();
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     scrapi.close();
+    await provider.shutdown();
   });
 
   afterEach(async () => {
@@ -106,7 +105,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     expect(genAIEvent.value).toBe(spanName);
 
     const genAIEventMetadata = genAIEvent?.metadata;
-    console.log('genAIEventMetadata', genAIEventMetadata);
 
     const span = validateOtelClientSpanBasics(traceRequests, spanName);
     const spanAttrMap = getSpanAttributesMap(span);
@@ -210,10 +208,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     expect(genAIEvent.value).toBe(spanName);
 
     const genAIEventMetadata = genAIEvent?.metadata;
-    console.log(
-      'genAIEventMetadata',
-      JSON.stringify(genAIEventMetadata, null, 2),
-    );
 
     const span = validateOtelClientSpanBasics(traceRequests, spanName);
     const spanAttrMap = getSpanAttributesMap(span);

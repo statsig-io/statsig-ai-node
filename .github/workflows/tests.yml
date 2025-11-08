@@ -45,4 +45,6 @@ jobs:
         run: npm ci
 
       - name: Run AI tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_AI_SDK_TEST_API_KEY }}
         run: npm run test:ai
