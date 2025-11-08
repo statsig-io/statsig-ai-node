@@ -85,7 +85,6 @@ export class SpanTelemetry {
   }
 
   public fail(error: any): void {
-    console.log('telemetry failing!!', error);
     this.recordException(error);
     this.setStatus({
       code: SpanStatusCode.ERROR,
