@@ -100,10 +100,14 @@ export class MockScrapi {
     return this.requests.filter((req) => req.path.startsWith('/otlp'));
   }
 
-  getLoggedEvents() {
-    return this.requests
+  getLoggedEvents(eventName?: string) {
+    const events = this.requests
       .filter((req) => req.path.startsWith('/v1/log_event'))
       .flatMap((req) => req.body.events || []);
+    if (eventName) {
+      return events.filter((event) => event.eventName === eventName);
+    }
+    return events;
   }
 
   clearRequests() {

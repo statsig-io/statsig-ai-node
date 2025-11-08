@@ -17,8 +17,9 @@ import {
 } from '../../otel/conventions';
 import { StatsigSpanProcessor } from '../../otel/processor';
 import { wrapOpenAI } from '../../wrappers/openai';
-import { MockOpenAI } from '../shared/MockOpenAI';
+import OpenAI from 'openai';
 
+const TEST_MODEL = 'gpt-4.1-nano';
 describe('Span metadata propagation', () => {
   let contextManager: AsyncLocalStorageContextManager;
   let exporter: InMemorySpanExporter;
@@ -56,8 +57,8 @@ describe('Span metadata propagation', () => {
 
   it('attaches prompt and user metadata to OpenAI spans created within prompt.withLive', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const openai = new MockOpenAI();
-    const wrappedOpenAI = wrapOpenAI(openai as any);
+    const openai = new OpenAI();
+    const wrappedOpenAI = wrapOpenAI(openai);
 
     const promptVersion = {
       getName: jest.fn(() => 'Version 42'),
@@ -69,8 +70,8 @@ describe('Span metadata propagation', () => {
     const prompt = new Prompt(user, 'trace_prompt', promptVersion, []);
 
     await prompt.withLive(async () => {
-      await wrappedOpenAI.chat?.completions?.create({
-        model: 'gpt-4',
+      await wrappedOpenAI.chat.completions.create({
+        model: TEST_MODEL,
         messages: [{ role: 'user', content: 'Hello from prompt context' }],
       });
     });
@@ -81,7 +82,7 @@ describe('Span metadata propagation', () => {
     expect(spans.length).toBeGreaterThan(0);
 
     const completionSpan = spans.find(
-      (span: ReadableSpan) => span.name === 'openai.chat.completions.create',
+      (span: ReadableSpan) => span.name === `chat ${TEST_MODEL}`,
     );
     expect(completionSpan).toBeDefined();
 

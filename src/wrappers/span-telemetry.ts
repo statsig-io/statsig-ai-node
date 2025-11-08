@@ -1,10 +1,5 @@
 import { AttributeValue, Span, SpanStatusCode } from '@opentelemetry/api';
 import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
-import {
-  extractResponseAttributes,
-  extractUsageAttributes,
-} from './attribute-helper';
-import { GenAICaptureOptions } from './openai-configs';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
 const PLACEHOLDER_STATSIG_USER = new StatsigUser({
@@ -99,13 +94,9 @@ export class SpanTelemetry {
   }
 
   public end(): void {
-    console.log('telemetry ending!!', this.spanName, this.ended);
     if (this.ended) {
       return;
     }
-    this.setAttributes({
-      'gen_ai.server.request.duration': Date.now() - this.startTime,
-    });
     this.ended = true;
     this.span.end();
     this.logSpanEvent(this.spanName, { ...this.metadata });

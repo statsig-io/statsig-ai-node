@@ -62,20 +62,6 @@ export class StatsigOpenAIProxy {
   get client(): OpenAILike {
     const self = this;
 
-    const completion = new Proxy(this.openai.completions, {
-      get(target, name, recv) {
-        const original = Reflect.get(target, name, recv);
-        if (name === 'create') {
-          return self.wrapMaybeStreamMethod(
-            original.bind(target),
-            'text_completion',
-            true,
-          );
-        }
-        return original;
-      },
-    });
-
     const chat = new Proxy(this.openai.chat, {
       get(target, name, recv) {
         if (name === 'completions') {
@@ -97,6 +83,20 @@ export class StatsigOpenAIProxy {
         }
 
         return Reflect.get(target, name, recv);
+      },
+    });
+
+    const completion = new Proxy(this.openai.completions, {
+      get(target, name, recv) {
+        const original = Reflect.get(target, name, recv);
+        if (name === 'create') {
+          return self.wrapMaybeStreamMethod(
+            original.bind(target),
+            'text_completion',
+            true,
+          );
+        }
+        return original;
       },
     });
 
@@ -175,34 +175,31 @@ export class StatsigOpenAIProxy {
       params as Record<string, any>,
     );
 
+    const maybeStream = callFn(params, options);
+
+    if (isAsyncIterable(maybeStream)) {
+      telemetry.setAttributes({ 'gen_ai.request.stream': true });
+      const wrappedStream = this.wrapStream(
+        maybeStream,
+        telemetry,
+        this._captureOptions,
+      );
+      return { data: wrappedStream };
+    }
+
     try {
-      const maybeStream = callFn(params, options);
-
-      if (isAsyncIterable(maybeStream)) {
-        telemetry.setAttributes({ 'gen_ai.request.stream': true });
-        const wrappedStream = this.wrapStream(
-          maybeStream,
-          telemetry,
-          this._captureOptions,
-        );
-        return { data: wrappedStream };
-      }
-
       const promise = maybeStream;
+      let data: any;
       if (typeof promise.withResponse === 'function') {
-        const { data, response } = await promise.withResponse();
-        telemetry.setStatus({ code: SpanStatusCode.OK });
-        telemetry.setAttributes(
-          extractSingleOAIResponseAttributes(
-            response ?? {},
-            this._captureOptions,
-          ),
-        );
-        return { data };
+        ({ data } = await promise.withResponse());
+      } else {
+        data = await promise;
       }
-
-      const data = await promise;
+      telemetry.recordTimeToFirstToken();
       telemetry.setStatus({ code: SpanStatusCode.OK });
+      telemetry.setAttributes(
+        extractSingleOAIResponseAttributes(data ?? {}, this._captureOptions),
+      );
       return { data };
     } catch (e) {
       telemetry.fail(e);
@@ -295,9 +292,10 @@ export class StatsigOpenAIProxy {
               data = await apip;
             }
             telemetry.setStatus({ code: SpanStatusCode.OK });
+            telemetry.recordTimeToFirstToken();
             telemetry.setAttributes(
               extractSingleOAIResponseAttributes(
-                response ?? {},
+                data ?? {},
                 this._captureOptions,
               ),
             );

@@ -1,6 +1,6 @@
 import { StatsigOpenAIProxyConfig, isOpenAILike } from './openai-configs';
 
-import { StatsigOpenAIProxy } from './oai-impl';
+import { StatsigOpenAIProxy } from './openai-impl';
 
 export function wrapOpenAI<T extends object>(
   openai: T,
