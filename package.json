@@ -28,7 +28,8 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "prepare": "rm -rf dist/ && tsc",
-    "test": "npm run prepare && jest --testPathIgnorePatterns='src/__tests__/ai-tests' --forceExit",
+    "test": "npm run prepare && jest --forceExit",
+    "test:unit": "npm run prepare && jest --testPathIgnorePatterns='src/__tests__/ai-tests' --forceExit",
     "test:ai": "npm run prepare && jest --testPathPattern=src/__tests__/ai-tests/.*\\.test\\.ts --forceExit",
     "lint": "eslint '*/**/*.{ts,tsx}' --fix --max-warnings 0 --cache --cache-strategy content && git status",
     "build:examples": "rm -rf examples/dist && tsc -p tsconfig.examples.json"

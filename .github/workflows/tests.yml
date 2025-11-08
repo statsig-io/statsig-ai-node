@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  jest:
+  unitTests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Run Jest tests
-        run: npm run test
+        run: npm run test:unit
 
   aiTests:
     runs-on: ubuntu-latest

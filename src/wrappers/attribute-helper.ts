@@ -59,9 +59,7 @@ export function extractResponseAttributes(
   const res = response ?? {};
   attrs['gen_ai.response.id'] = res.id;
   attrs['gen_ai.response.model'] = res.model;
-  const finishReasons = (res.choices ?? []).map(
-    (c: any) => c.finish_reason ?? '',
-  );
+  const finishReasons = (res.choices ?? []).map((c: any) => c.finish_reason);
   if (finishReasons.length)
     attrs['gen_ai.response.finish_reasons'] = finishReasons;
   if (options.capture_all || options.capture_output_messages) {

@@ -177,24 +177,22 @@ export class StatsigOpenAIProxy {
 
     const maybeStream = callFn(params, options);
 
-    if (isAsyncIterable(maybeStream)) {
-      telemetry.setAttributes({ 'gen_ai.request.stream': true });
-      const wrappedStream = this.wrapStream(
-        maybeStream,
-        telemetry,
-        this._captureOptions,
-      );
-      return { data: wrappedStream };
+    if (params.stream) {
+      const maybeStream = await callFn(params, options);
+      if (isAsyncIterable(maybeStream)) {
+        telemetry.setAttributes({ 'gen_ai.request.stream': true });
+        const wrappedStream = this.wrapStream(
+          maybeStream,
+          telemetry,
+          this._captureOptions,
+        );
+        return { data: wrappedStream };
+      }
     }
 
     try {
       const promise = maybeStream;
-      let data: any;
-      if (typeof promise.withResponse === 'function') {
-        ({ data } = await promise.withResponse());
-      } else {
-        data = await promise;
-      }
+      const data = await promise;
       telemetry.recordTimeToFirstToken();
       telemetry.setStatus({ code: SpanStatusCode.OK });
       telemetry.setAttributes(
@@ -322,7 +320,7 @@ export class StatsigOpenAIProxy {
           return () =>
             new TelemetryStream(stream, telemetry, (telemetry, items) => {
               telemetry.setAttributes(
-                extractOAIResponsesAttributes(items, captureOptions),
+                parseOAIStreamingResponseIntoAttributes(items, captureOptions),
               );
             })[Symbol.asyncIterator]();
         }
@@ -415,29 +413,92 @@ function extractSingleOAIResponseAttributes(
   };
 }
 
-function extractOAIResponsesAttributes(
-  responses: any[],
+function parseOAIStreamingResponseIntoAttributes(
+  chunks: any[],
   options: GenAICaptureOptions,
 ): Record<string, any> {
-  if (!responses.length) {
+  if (!chunks.length) {
     return {};
   }
+  const attrs: Record<string, any> = {};
+  const { choices, totalInputTokens, totalOutputTokens } =
+    aggregateStreamedChoices(chunks);
+
+  attrs['gen_ai.response.id'] = chunks[0]['id'];
+  attrs['gen_ai.response.model'] = chunks[0]['model'];
+  attrs['gen_ai.usage.input_tokens'] = totalInputTokens;
+  attrs['gen_ai.usage.output_tokens'] = totalOutputTokens;
+  attrs['gen_ai.response.finish_reasons'] = choices.map(
+    (c: any) => c.finish_reason,
+  );
+  if (options.capture_all || options.capture_output_messages) {
+    attrs['gen_ai.output.messages'] = choices;
+  }
+  return attrs;
+}
+
+function aggregateStreamedChoices(chunks: any[]) {
+  const choicesMap: Record<
+    number,
+    {
+      index: number;
+      message: {
+        role?: string;
+        content?: string;
+      };
+      finish_reason?: string;
+    }
+  > = {};
+
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
-  const resAttrs: Record<string, any>[] = [];
-  for (const response of responses) {
-    const singleAttrs = extractSingleOAIResponseAttributes(response, options);
-    const inputTokens = singleAttrs['gen_ai.usage.input_tokens'];
-    const outputTokens = singleAttrs['gen_ai.usage.output_tokens'];
-    totalInputTokens += typeof inputTokens === 'number' ? inputTokens : 0;
-    totalOutputTokens += typeof outputTokens === 'number' ? outputTokens : 0;
-    resAttrs.push(singleAttrs);
+
+  for (const chunk of chunks) {
+    const usage = chunk.usage;
+    if (usage?.prompt_tokens && typeof usage.prompt_tokens === 'number') {
+      totalInputTokens += usage.prompt_tokens;
+    }
+    if (
+      usage?.completion_tokens &&
+      typeof usage.completion_tokens === 'number'
+    ) {
+      totalOutputTokens += usage.completion_tokens;
+    }
+
+    const choice = chunk.choices?.[0];
+    if (!choice) {
+      continue;
+    }
+
+    const { index, delta, finish_reason } = choice;
+
+    if (!choicesMap[index]) {
+      choicesMap[index] = {
+        index,
+        message: {
+          role: undefined,
+          content: '',
+        },
+      };
+    }
+
+    const agg = choicesMap[index];
+
+    if (delta?.role) {
+      agg.message.role = delta.role;
+    }
+    if (typeof delta?.content === 'string')
+      agg.message.content += delta.content;
+
+    if (finish_reason) {
+      agg.finish_reason = finish_reason;
+    }
   }
 
   return {
-    'gen.ai.usage.input_tokens': totalInputTokens,
-    'gen.ai.usage.output_tokens': totalOutputTokens,
-    'gen.ai.responses.json': resAttrs,
+    choices: Object.values(choicesMap),
+    totalInputTokens,
+    totalOutputTokens,
   };
 }
 
