@@ -2,13 +2,13 @@ import { context as otelContext } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { StatsigUser } from '@statsig/statsig-node-core';
 
-import { Prompt } from '../prompts/Prompt';
-import { PromptVersion } from '../prompts/PromptVersion';
+import { Prompt } from '../../prompts/Prompt';
+import { PromptVersion } from '../../prompts/PromptVersion';
 import {
   STATSIG_CTX_KEY_ACTIVE_PROMPT,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-} from '../otel/conventions';
-import { getUserFromContext } from '../otel/user-context';
+} from '../../otel/conventions';
+import { getUserFromContext } from '../../otel/user-context';
 
 describe('Prompt context helpers', () => {
   let contextManager: AsyncLocalStorageContextManager;

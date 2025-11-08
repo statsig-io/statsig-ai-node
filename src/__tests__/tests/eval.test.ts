@@ -1,6 +1,6 @@
-import { Eval } from '../evals/Eval';
-import { EvalHooks } from '../evals/EvalHooks';
-import { EvalParameters } from '../evals/EvalParameters';
+import { Eval } from '../../evals/Eval';
+import { EvalHooks } from '../../evals/EvalHooks';
+import { EvalParameters } from '../../evals/EvalParameters';
 import { z } from 'zod';
 
 describe('Eval', () => {

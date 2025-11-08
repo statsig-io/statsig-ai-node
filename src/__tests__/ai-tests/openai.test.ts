@@ -1,15 +1,17 @@
-import { DefaultMockResponses, MockOpenAI } from '../__tests__/MockOpenAI';
+import { DefaultMockResponses, MockOpenAI } from '../shared/MockOpenAI';
 
 import fs from 'fs';
 import OpenAI from 'openai';
 import path from 'path';
-import { initializeTracing, StatsigAI } from '../index';
+import { initializeTracing, StatsigAI } from '../../index';
 import { StatsigOptions } from '@statsig/statsig-node-core';
-import { wrapOpenAI } from '../wrappers/openai';
-import { OpenAILike } from '../wrappers/openai-configs';
-import { MockScrapi } from '../__tests__/MockScrapi';
+import { wrapOpenAI } from '../../wrappers/openai';
+import { OpenAILike } from '../../wrappers/openai-configs';
+import { MockScrapi } from '../shared/MockScrapi';
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
-import { STATSIG_ATTR_SPAN_TYPE } from '../otel/conventions';
+import { STATSIG_ATTR_SPAN_TYPE } from '../../otel/conventions';
+
+const TEST_MODEL = 'gpt-4o-nano';
 
 describe('OpenAI Wrapper with Statsig Tracing', () => {
   let scrapi: MockScrapi;

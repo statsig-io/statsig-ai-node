@@ -1,6 +1,6 @@
 {
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "src/__tests__/*", "dist", "tsconfig.json"],
+  "exclude": ["node_modules", "src/__tests__/**/*", "dist", "tsconfig.json"],
   "compilerOptions": {
     "target": "es6", // or another version like "es5", "es2017", etc.
     "module": "commonjs", // or "esnext", "es6", etc., depending on your needs

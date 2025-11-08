@@ -1,8 +1,8 @@
-import { MockScrapi } from './MockScrapi';
-import { StatsigAI } from '..';
+import { MockScrapi } from '../shared/MockScrapi';
+import { StatsigAI } from '../..';
 import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
-import path from 'path';
+import { getDCSFilePath } from '../shared/utils';
 
 describe('Logging', () => {
   let statsigAI: StatsigAI;
@@ -12,10 +12,7 @@ describe('Logging', () => {
 
   beforeAll(async () => {
     scrapi = await MockScrapi.create();
-    const dcs = fs.readFileSync(
-      path.join(__dirname, 'eval_proj_dcs.json'),
-      'utf8',
-    );
+    const dcs = fs.readFileSync(getDCSFilePath('eval_proj_dcs.json'), 'utf8');
     scrapi.mock('/v2/download_config_specs', dcs, {
       status: 200,
       method: 'GET',

@@ -15,12 +15,12 @@ import {
   getUserSpanAttrsFromContext,
   setUserToContext,
   withStatsigUserContext,
-} from '../otel/user-context';
-import { StatsigSpanProcessor } from '../otel/processor';
+} from '../../otel/user-context';
+import { StatsigSpanProcessor } from '../../otel/processor';
 import {
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_USER_ID,
-} from '../otel/conventions';
+} from '../../otel/conventions';
 
 describe('withStatsigUserContext', () => {
   let contextManager: AsyncLocalStorageContextManager;

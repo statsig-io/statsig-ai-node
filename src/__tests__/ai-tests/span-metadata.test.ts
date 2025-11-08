@@ -7,17 +7,17 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { StatsigUser } from '@statsig/statsig-node-core';
 
-import { Prompt } from '../prompts/Prompt';
-import { PromptVersion } from '../prompts/PromptVersion';
+import { Prompt } from '../../prompts/Prompt';
+import { PromptVersion } from '../../prompts/PromptVersion';
 import {
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_LLM_PROMPT_NAME,
   STATSIG_ATTR_LLM_PROMPT_VERSION,
   STATSIG_ATTR_USER_ID,
-} from '../otel/conventions';
-import { StatsigSpanProcessor } from '../otel/processor';
-import { wrapOpenAI } from '../wrappers/openai';
-import { MockOpenAI } from '../__tests__/MockOpenAI';
+} from '../../otel/conventions';
+import { StatsigSpanProcessor } from '../../otel/processor';
+import { wrapOpenAI } from '../../wrappers/openai';
+import { MockOpenAI } from '../shared/MockOpenAI';
 
 describe('Span metadata propagation', () => {
   let contextManager: AsyncLocalStorageContextManager;
