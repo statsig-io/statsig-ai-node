@@ -11,14 +11,12 @@ export function extractUsageAttributes(
 }
 
 export function extractBaseAttributes(
-  providerName: string,
   operationName: string,
   params: Record<string, any>,
   options: GenAICaptureOptions,
 ): Record<string, AttributeValue> {
   const model = params.model;
   const attrs: Record<string, AttributeValue> = {
-    'gen_ai.provider.name': providerName,
     'gen_ai.operation.name': operationName,
     'gen_ai.request.model': model,
   };
@@ -50,14 +48,10 @@ export function extractBaseAttributes(
   if (operationName === 'embeddings') {
     Object.assign(attrs, extractEmbeddingsAttributes(params));
   }
-  if (providerName === 'openai') {
-    Object.assign(attrs, extractOpenAIRequestAttributes(params));
-  }
   return attrs;
 }
 
 export function extractResponseAttributes(
-  providerName: string,
   response: any,
   options: GenAICaptureOptions,
 ): Record<string, AttributeValue> {
@@ -73,29 +67,6 @@ export function extractResponseAttributes(
   if (options.capture_all || options.capture_output_messages) {
     attrs['gen_ai.output.messages'] = res.choices;
   }
-  if (providerName === 'openai') {
-    Object.assign(attrs, extractOpenAIResponseAttributes(response));
-  }
-  return attrs;
-}
-
-function extractOpenAIRequestAttributes(
-  params: Record<string, any>,
-): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {};
-  const requestTier = params.service_tier ?? 'auto';
-  if (requestTier !== 'auto') {
-    attrs['openai.request.service_tier'] = requestTier;
-  }
-  return attrs;
-}
-
-function extractOpenAIResponseAttributes(
-  response: any,
-): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {};
-  attrs['openai.response.service_tier'] = response?.service_tier;
-  attrs['openai.response.system_fingerprint'] = response?.system_fingerprint;
   return attrs;
 }
 

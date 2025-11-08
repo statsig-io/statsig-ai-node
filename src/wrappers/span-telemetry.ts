@@ -13,6 +13,7 @@ const PLACEHOLDER_STATSIG_USER = new StatsigUser({
 
 export class SpanTelemetry {
   private readonly metadata: Record<string, string> = {};
+  private readonly startTime: number;
   private ended = false;
 
   constructor(
@@ -24,6 +25,7 @@ export class SpanTelemetry {
     const ctx = span.spanContext();
     this.metadata['span.trace_id'] = ctx.traceId;
     this.metadata['span.span_id'] = ctx.spanId;
+    this.startTime = Date.now();
   }
 
   public setAttributes(kv: Record<string, AttributeValue | undefined>): void {
@@ -57,18 +59,6 @@ export class SpanTelemetry {
     }
   }
 
-  private setAttributeOnSpanAndMetadata(
-    key: string,
-    value: AttributeValue,
-  ): void {
-    this.span.setAttribute(key, value);
-    this.metadata[key] = attributeValueToMetadata(value);
-  }
-
-  public setUsage(usage: Record<string, any>): void {
-    this.setAttributes(extractUsageAttributes(usage));
-  }
-
   public setStatus(status: { code: SpanStatusCode; message?: string }): void {
     this.span.setStatus(status);
     const codeName = SpanStatusCode[status.code];
@@ -78,16 +68,6 @@ export class SpanTelemetry {
     if (status.message) {
       this.metadata['span.status_message'] = String(status.message);
     }
-  }
-
-  public setResponseAttributes(
-    providerName: string,
-    response: any,
-    options: GenAICaptureOptions,
-  ): void {
-    this.setAttributes(
-      extractResponseAttributes(providerName, response, options),
-    );
   }
 
   public recordException(error: any): void {
@@ -101,6 +81,12 @@ export class SpanTelemetry {
     if (message) {
       this.metadata['exception.message'] = String(message);
     }
+  }
+
+  public recordTimeToFirstToken(): void {
+    this.setAttributes({
+      'gen_ai.server.time_to_first_token': Date.now() - this.startTime,
+    });
   }
 
   public fail(error: any): void {
@@ -117,9 +103,20 @@ export class SpanTelemetry {
     if (this.ended) {
       return;
     }
+    this.setAttributes({
+      'gen_ai.server.request.duration': Date.now() - this.startTime,
+    });
     this.ended = true;
     this.span.end();
     this.logSpanEvent(this.spanName, { ...this.metadata });
+  }
+
+  private setAttributeOnSpanAndMetadata(
+    key: string,
+    value: AttributeValue,
+  ): void {
+    this.span.setAttribute(key, value);
+    this.metadata[key] = attributeValueToMetadata(value);
   }
 
   private logSpanEvent(
@@ -201,7 +198,7 @@ export class TelemetryStream<T> implements AsyncIterable<T> {
   constructor(
     private source: AsyncIterable<T>,
     private telemetry: SpanTelemetry,
-    private t0: number,
+    private onData: (telemetry: SpanTelemetry, items: T[]) => void,
   ) {}
 
   async *[Symbol.asyncIterator]() {
@@ -210,15 +207,13 @@ export class TelemetryStream<T> implements AsyncIterable<T> {
     try {
       for await (const item of this.source) {
         if (first) {
-          this.telemetry.setAttributes({
-            'gen_ai.metrics.time_to_first_token_ms': Date.now() - this.t0,
-          });
+          this.telemetry.recordTimeToFirstToken();
           first = false;
         }
         all.push(item);
-        //todo: need to send an array of response items
         yield item;
       }
+      this.onData(this.telemetry, all);
       this.telemetry.setStatus({ code: SpanStatusCode.OK });
     } catch (e) {
       this.telemetry.fail(e);

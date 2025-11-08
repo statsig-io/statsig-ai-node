@@ -23,7 +23,10 @@ import {
   StatsigSpanType,
 } from '../otel/conventions';
 import { OtelSingleton } from '../otel/singleton';
-import { extractBaseAttributes } from './attribute-helper';
+import {
+  extractBaseAttributes,
+  extractResponseAttributes,
+} from './attribute-helper';
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
@@ -165,7 +168,6 @@ export class StatsigOpenAIProxy {
     options: unknown,
     opName: string,
   ): Promise<ResponseWithData> {
-    const t0 = Date.now();
     const spanName = `${opName} ${params.model ?? 'unknown'}`;
     const telemetry = this.startSpan(
       spanName,
@@ -178,7 +180,11 @@ export class StatsigOpenAIProxy {
 
       if (isAsyncIterable(maybeStream)) {
         telemetry.setAttributes({ 'gen_ai.request.stream': true });
-        const wrappedStream = this.wrapStream(maybeStream, telemetry, t0);
+        const wrappedStream = this.wrapStream(
+          maybeStream,
+          telemetry,
+          this._captureOptions,
+        );
         return { data: wrappedStream };
       }
 
@@ -186,11 +192,11 @@ export class StatsigOpenAIProxy {
       if (typeof promise.withResponse === 'function') {
         const { data, response } = await promise.withResponse();
         telemetry.setStatus({ code: SpanStatusCode.OK });
-        telemetry.setUsage(data?.usage ?? {});
-        telemetry.setResponseAttributes(
-          'openai',
-          response,
-          this._captureOptions,
+        telemetry.setAttributes(
+          extractSingleOAIResponseAttributes(
+            response ?? {},
+            this._captureOptions,
+          ),
         );
         return { data };
       }
@@ -289,14 +295,12 @@ export class StatsigOpenAIProxy {
               data = await apip;
             }
             telemetry.setStatus({ code: SpanStatusCode.OK });
-            telemetry.setUsage((data as any)?.usage ?? {});
-            if (response) {
-              telemetry.setResponseAttributes(
-                'openai',
-                response,
+            telemetry.setAttributes(
+              extractSingleOAIResponseAttributes(
+                response ?? {},
                 this._captureOptions,
-              );
-            }
+              ),
+            );
             return data as Result;
           } catch (e: any) {
             telemetry.fail(e);
@@ -312,13 +316,17 @@ export class StatsigOpenAIProxy {
   private wrapStream<T>(
     stream: AsyncIterable<T>,
     telemetry: SpanTelemetry,
-    t0: number,
+    captureOptions: GenAICaptureOptions,
   ) {
     const wrapped = new Proxy(stream as any, {
       get(target, prop, recv) {
         if (prop === Symbol.asyncIterator) {
           return () =>
-            new TelemetryStream(stream, telemetry, t0)[Symbol.asyncIterator]();
+            new TelemetryStream(stream, telemetry, (telemetry, items) => {
+              telemetry.setAttributes(
+                extractOAIResponsesAttributes(items, captureOptions),
+              );
+            })[Symbol.asyncIterator]();
         }
         return Reflect.get(target, prop, recv);
       },
@@ -333,11 +341,10 @@ export class StatsigOpenAIProxy {
     params: Record<string, any>,
   ): SpanTelemetry {
     let ctx = context.active();
-    const baseAttrs = extractBaseAttributes(
-      'openai',
+    const baseAttrs = extractOAIBaseAttributes(
       opName,
       params as Record<string, any>,
-      this._captureOptions ?? {},
+      this._captureOptions,
     );
     const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
     const statsigAttrs: Record<string, AttributeValue> = {
@@ -381,7 +388,6 @@ export class StatsigOpenAIProxy {
     );
 
     const telemetry = new SpanTelemetry(span, spanName, this._maxJSONChars);
-    console.log('telemetry attributes', attributes);
 
     telemetry.setAttributes(attributes);
     return telemetry;
@@ -390,4 +396,66 @@ export class StatsigOpenAIProxy {
 
 function isAsyncIterable<T = any>(x: any): x is AsyncIterable<T> {
   return x && typeof x[Symbol.asyncIterator] === 'function';
+}
+
+function extractOAIUsageAttributes(
+  usage: Record<string, any>,
+): Record<string, AttributeValue> {
+  return {
+    'gen_ai.usage.input_tokens': usage.prompt_tokens,
+    'gen_ai.usage.output_tokens': usage.completion_tokens,
+  };
+}
+
+function extractSingleOAIResponseAttributes(
+  response: Record<string, any>,
+  options: GenAICaptureOptions,
+): Record<string, AttributeValue> {
+  return {
+    ...extractResponseAttributes(response, options),
+    ...extractOAIUsageAttributes(response?.usage ?? {}),
+  };
+}
+
+function extractOAIResponsesAttributes(
+  responses: any[],
+  options: GenAICaptureOptions,
+): Record<string, any> {
+  if (!responses.length) {
+    return {};
+  }
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  const resAttrs: Record<string, any>[] = [];
+  for (const response of responses) {
+    const singleAttrs = extractSingleOAIResponseAttributes(response, options);
+    const inputTokens = singleAttrs['gen_ai.usage.input_tokens'];
+    const outputTokens = singleAttrs['gen_ai.usage.output_tokens'];
+    totalInputTokens += typeof inputTokens === 'number' ? inputTokens : 0;
+    totalOutputTokens += typeof outputTokens === 'number' ? outputTokens : 0;
+    resAttrs.push(singleAttrs);
+  }
+
+  return {
+    'gen.ai.usage.input_tokens': totalInputTokens,
+    'gen.ai.usage.output_tokens': totalOutputTokens,
+    'gen.ai.responses.json': resAttrs,
+  };
+}
+
+function extractOAIBaseAttributes(
+  operationName: string,
+  params: Record<string, any>,
+  options: GenAICaptureOptions,
+): Record<string, AttributeValue> {
+  const attrs: Record<string, AttributeValue> = {
+    ...extractBaseAttributes(operationName, params, options),
+  };
+  attrs['gen_ai.provider.name'] = 'openai';
+  attrs['gen_ai.request.model'] = params.model;
+  const requestTier = params.service_tier ?? 'auto';
+  if (requestTier !== 'auto') {
+    attrs['openai.request.service_tier'] = requestTier;
+  }
+  return attrs;
 }
