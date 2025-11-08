@@ -73,6 +73,6 @@ function extractEmbeddingsAttributes(
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {};
   attrs['gen_ai.embeddings.dimension.count'] = params.dimensions;
-  attrs['gen_ai.request.encoding_formats'] = params.encoding_format;
+  attrs['gen_ai.request.encoding_formats'] = [params.encoding_format];
   return attrs;
 }

@@ -377,8 +377,9 @@ function extractOAIUsageAttributes(
   usage: Record<string, any>,
 ): Record<string, AttributeValue> {
   return {
-    'gen_ai.usage.input_tokens': usage.prompt_tokens,
-    'gen_ai.usage.output_tokens': usage.completion_tokens,
+    'gen_ai.usage.input_tokens': usage.prompt_tokens ?? usage.input_tokens,
+    'gen_ai.usage.output_tokens':
+      usage.completion_tokens ?? usage.output_tokens,
   };
 }
 
