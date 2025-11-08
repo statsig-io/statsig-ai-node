@@ -38,13 +38,12 @@ export interface EvalOptions<
   evalRunName?: string;
 }
 
-export interface EvalResultRecord<Input, Output, Expected> {
+export type EvalResultRecord<Input, Output, Expected> = {
   input: Input;
-  expected: Expected;
   output: Output;
   scores: Record<string, string>;
   category?: string[] | string;
-}
+} & (Expected extends void ? {} : { expected: Expected });
 
 // Internal type used during eval execution that includes error tracking
 type InternalEvalResultRecord<Input, Output, Expected> = EvalResultRecord<
@@ -67,8 +66,8 @@ export interface EvalResult<Input, Output, Expected> {
 export async function Eval<
   Input,
   Output,
-  Expected,
-  Parameters extends EvalParameters,
+  Expected = void,
+  Parameters extends EvalParameters = {},
 >(
   name: string,
   options: EvalOptions<Input, Output, Expected, Parameters>,
@@ -111,10 +110,10 @@ export async function Eval<
             category: record.category ?? '',
           });
 
-          const scorerArgs = {
+          const scorerArgs: ScorerFunctionArgs<Input, Output, Expected> = {
             ...record,
             output,
-          } as ScorerFunctionArgs<Input, Output, Expected>;
+          };
 
           await Promise.all(
             Object.entries(normalizedScorer).map(async ([name, scorerFn]) => {

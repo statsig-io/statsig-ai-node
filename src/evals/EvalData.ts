@@ -1,8 +1,7 @@
-export interface EvalDataRecord<Input, Expected> {
+export type EvalDataRecord<Input, Expected> = {
   input: Input;
-  expected: Expected;
   category?: string[] | string;
-}
+} & (Expected extends void ? {} : { expected: Expected });
 
 export type EvalData<Input, Expected> =
   | EvalDataRecord<Input, Expected>[]

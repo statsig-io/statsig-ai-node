@@ -3,6 +3,14 @@ export const StatsigSpanType = {
   gen_ai: 'gen_ai',
 } as const;
 
+export const STATSIG_ATTR_GEN_AI_SPAN_TYPE = 'statsig.span.gen_ai.type';
+export const StatsigGenAISpanType = {
+  workflow: 'workflow',
+  tool: 'tool',
+  chat: 'chat',
+  generate_content: 'generate_content',
+} as const;
+
 export const STATSIG_ATTR_SPAN_LLM_ROOT = 'statsig.span.llm_root';
 export const STATSIG_SPAN_LLM_ROOT_VALUE = '1';
 

@@ -13,3 +13,4 @@ export { StatsigOTLPTraceExporter } from './otel/exporter';
 export { withStatsigUserContext } from './otel/user-context';
 export { Eval } from './evals/Eval';
 export { StatsigAI } from './StatsigAI';
+export { wrap } from './wrappers/wrap-call';
