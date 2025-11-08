@@ -13,7 +13,7 @@ permissions:
 jobs:
   run-ai-tests:
     name: Run AI tests when labeled
-    if: github.event.action == 'labeled' && github.event.label.name == 'ready-for-test'
+    if: github.event.action == 'labeled' && github.event.label.name == 'test ai'
     runs-on: ubuntu-latest
 
     steps:
