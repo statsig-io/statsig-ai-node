@@ -114,6 +114,7 @@ export class StatsigOpenAIProxy {
       get(target, name, recv) {
         const original = Reflect.get(target, name, recv);
         if (name === 'generate') {
+          console.log('wrapping images.generate');
           return self.wrapMethod(original.bind(target), 'images.generate');
         }
         return original;
@@ -401,11 +402,11 @@ function parseOAIStreamingResponseIntoAttributes(
     return {};
   }
   const attrs: Record<string, any> = {};
-  const { choices, totalInputTokens, totalOutputTokens } =
+  const { id, model, choices, totalInputTokens, totalOutputTokens } =
     aggregateStreamedChoices(chunks);
 
-  attrs['gen_ai.response.id'] = chunks[0]['id'];
-  attrs['gen_ai.response.model'] = chunks[0]['model'];
+  attrs['gen_ai.response.id'] = id;
+  attrs['gen_ai.response.model'] = model;
   attrs['gen_ai.usage.input_tokens'] = totalInputTokens;
   attrs['gen_ai.usage.output_tokens'] = totalOutputTokens;
   attrs['gen_ai.response.finish_reasons'] = choices.map(
@@ -432,17 +433,33 @@ function aggregateStreamedChoices(chunks: any[]) {
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let id = undefined;
+  let model = undefined;
 
-  for (const chunk of chunks) {
-    const usage = chunk.usage;
-    if (usage?.prompt_tokens && typeof usage.prompt_tokens === 'number') {
-      totalInputTokens += usage.prompt_tokens;
+  for (let chunk of chunks) {
+    if (chunk.response) {
+      // for response streams the metadata lives in chunk.response
+      chunk = chunk.response;
     }
-    if (
-      usage?.completion_tokens &&
-      typeof usage.completion_tokens === 'number'
-    ) {
+
+    if (chunk.id && !id) {
+      id = chunk.id;
+    }
+    if (chunk.model && !model) {
+      model = chunk.model;
+    }
+
+    const usage = chunk.usage;
+    if (typeof usage?.prompt_tokens === 'number') {
+      totalInputTokens += usage.prompt_tokens;
+    } else if (typeof usage?.input_tokens === 'number') {
+      totalInputTokens += usage.input_tokens;
+    }
+
+    if (typeof usage?.completion_tokens === 'number') {
       totalOutputTokens += usage.completion_tokens;
+    } else if (typeof usage?.output_tokens === 'number') {
+      totalOutputTokens += usage.output_tokens;
     }
 
     const choice = chunk.choices?.[0];
@@ -476,6 +493,8 @@ function aggregateStreamedChoices(chunks: any[]) {
   }
 
   return {
+    id,
+    model,
     choices: Object.values(choicesMap),
     totalInputTokens,
     totalOutputTokens,

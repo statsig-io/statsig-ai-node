@@ -187,6 +187,16 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       op: (c: any) => c.responses.create,
       args: { model: OPENAI_TEST_MODEL, input: 'Regular response test' },
     },
+    {
+      name: 'openai.responses.create with stream',
+      operationName: 'responses.create',
+      op: (c: any) => c.responses.create,
+      args: {
+        model: OPENAI_TEST_MODEL,
+        input: 'Stream response test',
+        stream: true,
+      },
+    },
   ];
 
   type TestCase = {
@@ -334,15 +344,3 @@ async function validateTraceAndEvent({
 //     n: 1,
 //   },
 // };
-
-// need better parsing of response chunks
-// {
-//   name: 'openai.responses.create with stream',
-//   operationName: 'responses.create',
-//   op: (c: any) => c.responses.create,
-//   args: {
-//     model: OPENAI_TEST_MODEL,
-//     input: 'Stream response test',
-//     stream: true,
-//   },
-// },
