@@ -114,7 +114,6 @@ export class StatsigOpenAIProxy {
       get(target, name, recv) {
         const original = Reflect.get(target, name, recv);
         if (name === 'generate') {
-          console.log('wrapping images.generate');
           return self.wrapMethod(original.bind(target), 'images.generate');
         }
         return original;

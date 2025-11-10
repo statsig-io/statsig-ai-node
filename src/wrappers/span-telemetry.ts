@@ -114,13 +114,6 @@ export class SpanTelemetry {
     metadata: Record<string, string>,
   ): void {
     const statsig = getStatsigInstanceForLogging();
-    console.log(
-      'got statisg instance',
-      statsig !== null,
-      'logging event',
-      spanName,
-      metadata,
-    );
     if (!statsig) {
       console.warn(
         '[Statsig] No shared global StatsigAI instance found. Call StatsigAI.newShared() before invoking OpenAI methods to capture Gen AI telemetry.',
