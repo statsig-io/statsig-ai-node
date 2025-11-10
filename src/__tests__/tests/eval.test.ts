@@ -1,4 +1,4 @@
-import { Eval } from '../../evals/Eval';
+import { Eval, EvalResultRecord } from '../../evals/Eval';
 import { EvalHooks } from '../../evals/EvalHooks';
 import { EvalParameters } from '../../evals/EvalParameters';
 import { z } from 'zod';
@@ -55,13 +55,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
 
     expect(metadata.error).toBe(false);
@@ -167,13 +167,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
 
     expect(metadata.error).toBe(false);
@@ -210,13 +210,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
     expect(metadata.error).toBe(false);
 
@@ -252,13 +252,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
     expect(metadata.error).toBe(false);
 
@@ -290,12 +290,12 @@ describe('Eval', () => {
     expect(results[0]).toMatchObject({
       input: 'Foo',
       output: 'Hello Foo',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       output: 'Hello Bar',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(metadata.error).toBe(false);
 
@@ -331,12 +331,12 @@ describe('Eval', () => {
     expect(results[0]).toMatchObject({
       input: 'Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       output: 'Hello Bar',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
 
     expect(metadata.error).toBe(false);
@@ -377,13 +377,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo param',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar param',
       output: 'Hello Bar param',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
     expect(metadata.error).toBe(false);
 
@@ -419,13 +419,13 @@ describe('Eval', () => {
       input: 'Foo',
       expected: 'Hi Foo',
       output: 'Hello Foo',
-      scores: { Grader: '0' },
+      scores: { Grader: 0 },
     });
     expect(results[1]).toMatchObject({
       input: 'Bar',
       expected: 'Hello Bar',
       output: 'Hello Bar',
-      scores: { Grader: '1' },
+      scores: { Grader: 1 },
     });
     expect(metadata.error).toBe(false);
 
@@ -466,9 +466,9 @@ describe('Eval', () => {
       expected: 'Hello Foo',
       output: 'Hello Foo',
       scores: {
-        correctness: '1',
-        startsWithHello: '1',
-        lengthCheck: '1',
+        correctness: 1,
+        startsWithHello: 1,
+        lengthCheck: 1,
       },
     });
     expect(results[1]).toMatchObject({
@@ -476,9 +476,9 @@ describe('Eval', () => {
       expected: 'Hello Bar',
       output: 'Hello Bar',
       scores: {
-        correctness: '1',
-        startsWithHello: '1',
-        lengthCheck: '1',
+        correctness: 1,
+        startsWithHello: 1,
+        lengthCheck: 1,
       },
     });
     expect(results[2]).toMatchObject({
@@ -486,9 +486,9 @@ describe('Eval', () => {
       expected: 'Hello Bar',
       output: 'Hello Baz',
       scores: {
-        correctness: '0',
-        startsWithHello: '1',
-        lengthCheck: '1',
+        correctness: 0,
+        startsWithHello: 1,
+        lengthCheck: 1,
       },
     });
     expect(metadata.error).toBe(false);
@@ -528,7 +528,7 @@ describe('Eval', () => {
       expected: 'Hello Foo',
       output: 'Hello Foo',
       scores: {
-        correctness: '1',
+        correctness: 1,
       },
       category: 'category1',
     });
@@ -537,7 +537,7 @@ describe('Eval', () => {
       expected: 'Hello Bar',
       output: 'Hello Bar',
       scores: {
-        correctness: '1',
+        correctness: 1,
       },
       category: 'category1',
     });
@@ -546,7 +546,7 @@ describe('Eval', () => {
       expected: 'Hello Bar',
       output: 'Hello Baz',
       scores: {
-        correctness: '0',
+        correctness: 0,
       },
       category: 'category2',
     });
@@ -565,7 +565,6 @@ describe('Eval', () => {
 
   test('handles scorer failure in multiple scorers gracefully', async () => {
     const dataset = [{ input: 'Test', expected: 'Hello Test' }];
-
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
@@ -578,22 +577,19 @@ describe('Eval', () => {
       },
       evalRunName: 'run-scorer-failure',
     });
-
     const { results, metadata } = evalResult;
     expect(results).toHaveLength(1);
-
     // The failing scorer should have score '0', but others should work
     expect(results[0]).toMatchObject({
       input: 'Test',
       expected: 'Hello Test',
       output: 'Hello Test',
       scores: {
-        goodScorer: '1',
-        failingScorer: '0', // Failed scorer gets 0
-        anotherGoodScorer: '1',
+        goodScorer: 1,
+        failingScorer: 0, // Failed scorer gets 0
+        anotherGoodScorer: 1,
       },
     });
-
     expect(metadata.error).toBe(false);
     expect(console.warn).toHaveBeenCalledWith(
       "[Statsig] Scorer 'failingScorer' failed:",
@@ -601,13 +597,11 @@ describe('Eval', () => {
       expect.any(Error),
     );
   });
-
   test('handles boolean scores from multiple scorers', async () => {
     const dataset = [
       { input: 'Pass', expected: 'Hello Pass' },
       { input: 'Fail', expected: 'Hello Fail' },
     ];
-
     const evalResult = await Eval('test task', {
       data: () => dataset,
       task: (input: string) => 'Hello ' + input,
@@ -618,20 +612,76 @@ describe('Eval', () => {
       },
       evalRunName: 'run-boolean-scores',
     });
+    const { results, metadata } = evalResult;
+    expect(results).toHaveLength(2);
+    expect(results[0].scores).toEqual({
+      booleanScorer: 1, // true -> 1
+      numericScorer: 0.8,
+    });
+    expect(results[1].scores).toEqual({
+      booleanScorer: 0, // false -> 0
+      numericScorer: 0.2,
+    });
+    expect(metadata.error).toBe(false);
+  });
+
+  test('handle summaryScores support with passing in results', async () => {
+    const dataset = [
+      { input: 'Foo', expected: 'Hello Foo' },
+      { input: 'Bar', expected: 'Hello Bar' },
+    ];
+
+    const evalResult = await Eval('test task', {
+      data: () => dataset,
+      task: (input: string) => 'Hello ' + input,
+      scorer: {
+        correctness: ({ output, expected }) => output === (expected as any),
+      },
+      evalRunName: 'run-summary-scores-support-with-results',
+      summaryScores: (results: EvalResultRecord<string, string, string>[]) => {
+        return {
+          correctness: results.filter((r) => r.scores.correctness === 1).length,
+          length: results.reduce(
+            (sum, r) => sum + (r.output as string).length,
+            0,
+          ),
+        };
+      },
+    });
 
     const { results, metadata } = evalResult;
     expect(results).toHaveLength(2);
 
-    expect(results[0].scores).toEqual({
-      booleanScorer: '1', // true -> 1
-      numericScorer: '0.8',
+    expect(results[0]).toMatchObject({
+      input: 'Foo',
+      expected: 'Hello Foo',
+      output: 'Hello Foo',
+      scores: {
+        correctness: 1,
+      },
     });
-
-    expect(results[1].scores).toEqual({
-      booleanScorer: '0', // false -> 0
-      numericScorer: '0.2',
+    expect(results[1]).toMatchObject({
+      input: 'Bar',
+      expected: 'Hello Bar',
+      output: 'Hello Bar',
+      scores: {
+        correctness: 1,
+      },
     });
-
     expect(metadata.error).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, req] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.statsig.com/console/v1/evals/send_results/' +
+        encodeURIComponent('test task'),
+    );
+    const body = JSON.parse(req?.body as string);
+    expect(body.name).toBe('run-summary-scores-support-with-results');
+    expect(body.summaryScores).toEqual({
+      correctness: 2,
+      length: 18,
+    });
+    expect(body.results).toEqual(results);
   });
 });

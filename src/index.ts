@@ -11,6 +11,6 @@ export { initializeTracing } from './otel/otel';
 export { StatsigSpanProcessor } from './otel/processor';
 export { StatsigOTLPTraceExporter } from './otel/exporter';
 export { withStatsigUserContext } from './otel/user-context';
-export { Eval } from './evals/Eval';
+export { Eval, EvalResultRecord } from './evals/Eval';
 export { StatsigAI } from './StatsigAI';
 export { wrap } from './wrappers/wrap-call';
