@@ -218,14 +218,14 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     const start = Date.now();
     const method = await op(client);
     const result = await method(args);
-    let expectedDuration = Date.now() - start;
+    let expectedDuration = Math.round(Date.now() - start);
 
     if (args.stream) {
       let first = true;
       for await (const _ of result as any) {
         if (first) {
           first = false;
-          expectedDuration = Date.now() - start;
+          expectedDuration = Math.round(Date.now() - start);
         }
       }
     }

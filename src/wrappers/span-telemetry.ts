@@ -80,7 +80,9 @@ export class SpanTelemetry {
 
   public recordTimeToFirstToken(): void {
     this.setAttributes({
-      'gen_ai.server.time_to_first_token': performance.now() - this.startTime,
+      'gen_ai.server.time_to_first_token': Math.round(
+        performance.now() - this.startTime,
+      ),
     });
   }
 
