@@ -20,7 +20,7 @@ export class SpanTelemetry {
     const ctx = span.spanContext();
     this.metadata['span.trace_id'] = ctx.traceId;
     this.metadata['span.span_id'] = ctx.spanId;
-    this.startTime = Date.now();
+    this.startTime = performance.now();
   }
 
   public setAttributes(kv: Record<string, AttributeValue | undefined>): void {
@@ -80,7 +80,7 @@ export class SpanTelemetry {
 
   public recordTimeToFirstToken(): void {
     this.setAttributes({
-      'gen_ai.server.time_to_first_token': Date.now() - this.startTime,
+      'gen_ai.server.time_to_first_token': performance.now() - this.startTime,
     });
   }
 

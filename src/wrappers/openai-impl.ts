@@ -30,13 +30,13 @@ import {
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
-type ResponseWithData = {
+type ResponseWithData<T> = {
   response?: Response;
-  data: any;
+  data: T;
 };
 
 type APIPromise<T> = Promise<T> & {
-  withResponse?: () => Promise<ResponseWithData>;
+  withResponse?: () => Promise<ResponseWithData<T>>;
 };
 
 type NonStreamingResult = any;
@@ -167,7 +167,7 @@ export class StatsigOpenAIProxy {
     params: Params,
     options: unknown,
     opName: string,
-  ): Promise<ResponseWithData> {
+  ): Promise<ResponseWithData<Result>> {
     const spanName = `${opName} ${params.model ?? 'unknown'}`;
     const telemetry = this.startSpan(
       spanName,
@@ -186,7 +186,7 @@ export class StatsigOpenAIProxy {
           telemetry,
           this._captureOptions,
         );
-        return { data: wrappedStream };
+        return { data: wrappedStream as Result };
       }
     }
 
@@ -196,12 +196,12 @@ export class StatsigOpenAIProxy {
   }
 
   private lazyWrapPromise<Result>(
-    executor: () => Promise<ResponseWithData>,
+    executor: () => Promise<ResponseWithData<Result>>,
   ): APIPromise<Result> {
-    let taskPromise: Promise<ResponseWithData> | null = null;
+    let taskPromise: Promise<ResponseWithData<Result>> | null = null;
     let dataPromise: Promise<Result> | null = null;
 
-    const ensureTaskRun = (): Promise<ResponseWithData> => {
+    const ensureTaskRun = (): Promise<ResponseWithData<Result>> => {
       if (!taskPromise) {
         taskPromise = executor();
       }
