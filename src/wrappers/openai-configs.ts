@@ -13,12 +13,18 @@ export interface OpenAILike {
   images?: any;
 }
 
+export interface GenAICaptureOptions {
+  capture_all?: boolean;
+  capture_input_messages?: boolean;
+  capture_output_messages?: boolean;
+  capture_system_instructions?: boolean;
+  capture_tool_definitions?: boolean;
+}
+
 export interface StatsigOpenAIProxyConfig {
   customAttributes?: Record<string, AttributeValue>;
 
-  redact?: (obj: any) => any;
-
-  ensureStreamUsage?: boolean;
+  captureOptions?: GenAICaptureOptions;
 
   maxJSONChars?: number; // default to 40,000
 }

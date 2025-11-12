@@ -57,6 +57,7 @@ export class StatsigAIInstance {
     if (this._ownsStatsigInstance) {
       await this._statsig.shutdown();
     }
+    await this.flushEvents();
   }
 
   getStatsig(): Statsig {

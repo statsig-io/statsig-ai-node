@@ -1,9 +1,9 @@
-import { MockScrapi } from './MockScrapi';
+import { MockScrapi } from '../shared/MockScrapi';
 import { Statsig, StatsigOptions } from '@statsig/statsig-node-core';
-import { StatsigAI } from '..';
+import { StatsigAI } from '../..';
 import { StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
-import path from 'path';
+import { getDCSFilePath } from '../shared/utils';
 
 describe('Prompt Targeting', () => {
   let statsigAI: StatsigAI;
@@ -14,7 +14,7 @@ describe('Prompt Targeting', () => {
   beforeAll(async () => {
     scrapi = await MockScrapi.create();
     const dcs = fs.readFileSync(
-      path.join(__dirname, 'eval_proj_dcs_targeting.json'),
+      getDCSFilePath('eval_proj_dcs_targeting.json'),
       'utf8',
     );
     scrapi.mock('/v2/download_config_specs', dcs, {
