@@ -320,8 +320,11 @@ async function validateTraceAndEvent({
   }
 
   if (expectedDuration) {
-    const recorded = attrs['gen_ai.server.time_to_first_token'].intValue;
-    expect(Math.abs(recorded - expectedDuration)).toBeLessThan(200);
+    const msElapsed = attrs['gen_ai.server.time_to_first_token_ms'].intValue;
+    expect(Math.abs(msElapsed - expectedDuration)).toBeLessThan(200);
+    const secondsElapsed =
+      attrs['gen_ai.server.time_to_first_token'].doubleValue;
+    expect(Math.abs(secondsElapsed - expectedDuration / 1000)).toBeLessThan(2);
   }
 
   // -- Span/event consistency
