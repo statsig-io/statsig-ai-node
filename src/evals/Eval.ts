@@ -36,23 +36,20 @@ export interface EvalOptions<
 
   /** Optional name to identify the run of the eval */
   evalRunName?: string;
+
+  /** A function that receives the results and produces optional summary scores. */
+  summaryScores?: (
+    results: EvalResultRecord<Input, Output, Expected>[],
+  ) => Record<string, number>;
 }
 
 export type EvalResultRecord<Input, Output, Expected> = {
   input: Input;
   output: Output;
-  scores: Record<string, string>;
+  scores: Record<string, number>;
   category?: string[] | string;
-} & (Expected extends void ? {} : { expected: Expected });
-
-// Internal type used during eval execution that includes error tracking
-type InternalEvalResultRecord<Input, Output, Expected> = EvalResultRecord<
-  Input,
-  Output,
-  Expected
-> & {
   error?: boolean;
-};
+} & (Expected extends void ? {} : { expected: Expected });
 
 export interface EvalMetadata {
   error: boolean;
@@ -72,7 +69,8 @@ export async function Eval<
   name: string,
   options: EvalOptions<Input, Output, Expected, Parameters>,
 ): Promise<EvalResult<Input, Output, Expected>> {
-  const { data, task, scorer, parameters, evalRunName } = options;
+  const { data, task, scorer, parameters, evalRunName, summaryScores } =
+    options;
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
@@ -97,11 +95,11 @@ export async function Eval<
     throw new Error('[Statsig] Invalid scorer provided.');
   }
 
-  const results: InternalEvalResultRecord<Input, Output, Expected>[] =
+  const results: EvalResultRecord<Input, Output, Expected>[] =
     await Promise.all(
       normalizedData.map(async (record) => {
         let output: Output | undefined;
-        let scores: Record<string, string> = {};
+        let scores: Record<string, number> = {};
         let error = false;
 
         try {
@@ -121,14 +119,14 @@ export async function Eval<
                 const rawScore = await scorerFn(scorerArgs);
                 const normalizedScore =
                   typeof rawScore === 'boolean' ? (rawScore ? 1 : 0) : rawScore;
-                scores[name] = normalizedScore.toString();
+                scores[name] = normalizedScore;
               } catch (err) {
                 console.warn(
                   `[Statsig] Scorer '${name}' failed:`,
                   record.input,
                   err,
                 );
-                scores[name] = '0';
+                scores[name] = 0;
               }
             }),
           );
@@ -146,11 +144,24 @@ export async function Eval<
           output,
           scores,
           ...(error ? { error: true } : {}),
-        } as InternalEvalResultRecord<Input, Output, Expected>;
+        } as EvalResultRecord<Input, Output, Expected>;
       }),
     );
 
-  await sendEvalResults(name, results, apiKey, evalRunName);
+  let computedSummaryScores: Record<string, number> | undefined;
+  if (summaryScores) {
+    if (typeof summaryScores === 'function') {
+      computedSummaryScores = summaryScores(results);
+    }
+  }
+
+  await sendEvalResults(
+    name,
+    results,
+    apiKey,
+    evalRunName,
+    computedSummaryScores,
+  );
   return {
     results,
     metadata: { error: results.some((result) => result.error) },
@@ -187,16 +198,49 @@ async function normalizeEvalData<Input, Expected>(
   throw new Error('[Statsig] Invalid type provided to data parameter.');
 }
 
+interface EvalResultsPayload<Input, Output, Expected> {
+  results: EvalResultRecord<Input, Output, Expected>[];
+  name?: string;
+  summaryScores?: Record<string, number>;
+}
+
+function validateSummary(summary: Record<string, number>): void {
+  for (const [key, value] of Object.entries(summary)) {
+    if (typeof key !== 'string') {
+      throw new Error('[Statsig] summary keys must be strings');
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(
+        `[Statsig] summary values must be finite numbers. Invalid value for key "${key}": ${value}`,
+      );
+    }
+  }
+}
+
 async function sendEvalResults<Input, Output, Expected>(
   name: string,
-  records: InternalEvalResultRecord<Input, Output, Expected>[],
+  records: EvalResultRecord<Input, Output, Expected>[],
   apiKey: string,
   evalRunName?: string,
+  computedSummaryScores?: Record<string, number>,
 ): Promise<void> {
   try {
+    // Validate summary if provided
+    if (computedSummaryScores) {
+      validateSummary(computedSummaryScores);
+    }
+
     const fetchImpl: typeof fetch =
       (globalThis as any).fetch ??
       (((await import('node-fetch')) as any).default as typeof fetch);
+
+    const requestBody: EvalResultsPayload<Input, Output, Expected> = {
+      results: records,
+      ...(evalRunName !== undefined && { name: evalRunName }),
+      ...(computedSummaryScores !== undefined && {
+        summaryScores: computedSummaryScores,
+      }),
+    };
 
     const response = await fetchImpl(
       `${STATSIG_POST_EVAL_ENDPOINT}/${encodeURIComponent(name)}`,
@@ -206,7 +250,7 @@ async function sendEvalResults<Input, Output, Expected>(
           'Content-Type': 'application/json',
           'STATSIG-API-KEY': apiKey,
         },
-        body: JSON.stringify({ results: records, name: evalRunName }),
+        body: JSON.stringify(requestBody),
       },
     );
 
