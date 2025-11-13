@@ -26,7 +26,7 @@ export interface EvalOptions<
   /** Function that generates an output given the input */
   task: EvalTask<Input, Output, Parameters>;
 
-  /** Object of named scorer functions, or a single scorer function (will be named "eval_grader" by default) */
+  /** Object of named scorer functions, or a single scorer function (will be named "Grader" by default) */
   scorer:
     | EvalScorers<Input, Output, Expected>
     | ScorerFunction<Input, Output, Expected>;
@@ -38,7 +38,7 @@ export interface EvalOptions<
   evalRunName?: string;
 
   /** A function that receives the results and produces optional summary scores. */
-  summaryScores?: (
+  summaryScoresFn?: (
     results: EvalResultRecord<Input, Output, Expected>[],
   ) => Record<string, number>;
 }
@@ -69,7 +69,7 @@ export async function Eval<
   name: string,
   options: EvalOptions<Input, Output, Expected, Parameters>,
 ): Promise<EvalResult<Input, Output, Expected>> {
-  const { data, task, scorer, parameters, evalRunName, summaryScores } =
+  const { data, task, scorer, parameters, evalRunName, summaryScoresFn } =
     options;
   const apiKey = process.env.STATSIG_API_KEY;
 
@@ -149,9 +149,9 @@ export async function Eval<
     );
 
   let computedSummaryScores: Record<string, number> | undefined;
-  if (summaryScores) {
-    if (typeof summaryScores === 'function') {
-      computedSummaryScores = summaryScores(results);
+  if (summaryScoresFn) {
+    if (typeof summaryScoresFn === 'function') {
+      computedSummaryScores = summaryScoresFn(results);
     }
   }
 
