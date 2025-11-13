@@ -38,7 +38,7 @@ export interface EvalOptions<
   evalRunName?: string;
 
   /** A function that receives the results and produces optional summary scores. */
-  summaryScores?: (
+  summaryScoresFn?: (
     results: EvalResultRecord<Input, Output, Expected>[],
   ) => Record<string, number>;
 }
@@ -69,8 +69,14 @@ export async function Eval<
   name: string,
   options: EvalOptions<Input, Output, Expected, Parameters>,
 ): Promise<EvalResult<Input, Output, Expected>> {
-  const { data, task, scorer, parameters, evalRunName, summaryScores } =
-    options;
+  const {
+    data,
+    task,
+    scorer,
+    parameters,
+    evalRunName,
+    summaryScoresFn: summaryScores,
+  } = options;
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
