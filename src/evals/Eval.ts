@@ -26,7 +26,7 @@ export interface EvalOptions<
   /** Function that generates an output given the input */
   task: EvalTask<Input, Output, Parameters>;
 
-  /** Object of named scorer functions, or a single scorer function (will be named "eval_grader" by default) */
+  /** Object of named scorer functions, or a single scorer function (will be named "Grader" by default) */
   scorer:
     | EvalScorers<Input, Output, Expected>
     | ScorerFunction<Input, Output, Expected>;
