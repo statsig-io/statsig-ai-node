@@ -638,7 +638,9 @@ describe('Eval', () => {
         correctness: ({ output, expected }) => output === (expected as any),
       },
       evalRunName: 'run-summary-scores-support-with-results',
-      summaryScores: (results: EvalResultRecord<string, string, string>[]) => {
+      summaryScoresFn: (
+        results: EvalResultRecord<string, string, string>[],
+      ) => {
         return {
           correctness: results.filter((r) => r.scores.correctness === 1).length,
           length: results.reduce(
