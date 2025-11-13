@@ -69,14 +69,8 @@ export async function Eval<
   name: string,
   options: EvalOptions<Input, Output, Expected, Parameters>,
 ): Promise<EvalResult<Input, Output, Expected>> {
-  const {
-    data,
-    task,
-    scorer,
-    parameters,
-    evalRunName,
-    summaryScoresFn: summaryScores,
-  } = options;
+  const { data, task, scorer, parameters, evalRunName, summaryScoresFn } =
+    options;
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
@@ -155,9 +149,9 @@ export async function Eval<
     );
 
   let computedSummaryScores: Record<string, number> | undefined;
-  if (summaryScores) {
-    if (typeof summaryScores === 'function') {
-      computedSummaryScores = summaryScores(results);
+  if (summaryScoresFn) {
+    if (typeof summaryScoresFn === 'function') {
+      computedSummaryScores = summaryScoresFn(results);
     }
   }
 
