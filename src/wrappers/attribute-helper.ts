@@ -17,7 +17,6 @@ export function extractBaseAttributes(
 ): Record<string, AttributeValue> {
   const model = params.model;
   const attrs: Record<string, AttributeValue> = {
-    'gen_ai.operation.name': operationName,
     'gen_ai.request.model': model,
   };
   attrs['gen_ai.request.max_tokens'] =
@@ -45,7 +44,7 @@ export function extractBaseAttributes(
   if (options.capture_all || options.capture_tool_definitions) {
     attrs['gen_ai.tool.definitions'] = params.tools;
   }
-  if (operationName === 'embeddings') {
+  if (operationName.includes('embeddings')) {
     Object.assign(attrs, extractEmbeddingsAttributes(params));
   }
   return attrs;

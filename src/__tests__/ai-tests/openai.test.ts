@@ -21,35 +21,41 @@ type OperationRequiredAttributes = {
   id: boolean;
   finish_reasons: boolean;
   output_tokens: boolean;
+  otel_semantic_name: string;
 };
 const OPERATION_REQUIRED_ATTRIBUTES_MAP: Record<
   string,
   OperationRequiredAttributes
 > = {
-  chat: {
+  'openai.chat.completions.create': {
     id: true,
     finish_reasons: true,
     output_tokens: true,
+    otel_semantic_name: 'chat',
   },
-  text_completion: {
+  'openai.completions.create': {
     id: true,
     finish_reasons: true,
     output_tokens: true,
+    otel_semantic_name: 'text_completion',
   },
-  embeddings: {
+  'openai.embeddings.create': {
     id: false,
     finish_reasons: false,
     output_tokens: false,
+    otel_semantic_name: 'embeddings',
   },
-  images: {
+  'openai.images.generate': {
     id: false,
     finish_reasons: false,
     output_tokens: true,
+    otel_semantic_name: 'images.generate',
   },
-  'responses.create': {
+  'openai.responses.create': {
     id: true,
     finish_reasons: false,
     output_tokens: true,
+    otel_semantic_name: 'responses.create',
   },
 };
 
@@ -115,7 +121,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   const TEST_CASES = [
     {
       name: 'openai.chat.completions.create',
-      operationName: 'chat',
+      operationName: 'openai.chat.completions.create',
       op: (c: any) => c.chat.completions.create,
       args: {
         model: OPENAI_TEST_MODEL,
@@ -129,7 +135,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     },
     {
       name: 'openai.chat.completions.create with stream',
-      operationName: 'chat',
+      operationName: 'openai.chat.completions.create',
       op: (c: any) => c.chat.completions.create,
       args: {
         model: OPENAI_TEST_MODEL,
@@ -145,7 +151,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     },
     {
       name: 'openai.completions.create',
-      operationName: 'text_completion',
+      operationName: 'openai.completions.create',
       op: (c: any) => c.completions.create,
       args: {
         model: OPENAI_TEST_MODEL,
@@ -156,7 +162,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     },
     {
       name: 'openai.completions.create with stream',
-      operationName: 'text_completion',
+      operationName: 'openai.completions.create',
       op: (c: any) => c.completions.create,
       args: {
         model: OPENAI_TEST_MODEL,
@@ -172,7 +178,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     },
     {
       name: 'openai.embeddings.create',
-      operationName: 'embeddings',
+      operationName: 'openai.embeddings.create',
       op: (c: any) => c.embeddings.create,
       args: {
         model: OPENAI_TEST_EMBEDDING_MODEL,
@@ -183,13 +189,13 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
     },
     {
       name: 'openai.responses.create',
-      operationName: 'responses.create',
+      operationName: 'openai.responses.create',
       op: (c: any) => c.responses.create,
       args: { model: OPENAI_TEST_MODEL, input: 'Regular response test' },
     },
     {
       name: 'openai.responses.create with stream',
-      operationName: 'responses.create',
+      operationName: 'openai.responses.create',
       op: (c: any) => c.responses.create,
       args: {
         model: OPENAI_TEST_MODEL,
@@ -208,13 +214,11 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
   };
 
   test.each(TEST_CASES)('$name', async (t: TestCase) => {
-    const { op, args, operationName, options: testOptions = {} } = t;
+    const { op, args, operationName: opName, options: testOptions = {} } = t;
     const openai = new OpenAI();
     const client = wrapOpenAI(openai, {
       captureOptions: testOptions,
     });
-    const spanName = `${operationName} ${args.model}`;
-
     const start = Date.now();
     const method = await op(client);
     const result = await method(args);
@@ -232,7 +236,7 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
 
     await validateTraceAndEvent({
       scrapi,
-      spanName,
+      opName,
       args,
       expectedDuration,
       options: testOptions,
@@ -242,19 +246,21 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
 
 async function validateTraceAndEvent({
   scrapi,
-  spanName,
+  opName,
   args,
   expectedDuration,
   options,
 }: {
   scrapi: MockScrapi;
-  spanName: string;
+  opName: string;
   args: any;
   expectedDuration: number;
   options: GenAICaptureOptions;
 }) {
   await StatsigAI.shared().flushEvents();
-  const opName = spanName.split(' ')[0];
+  const otelSemanticName =
+    OPERATION_REQUIRED_ATTRIBUTES_MAP[opName].otel_semantic_name;
+  const spanName = `${otelSemanticName} ${args.model}`;
 
   const traceRequests = scrapi.getOtelRequests();
   expect(traceRequests.length).toBeGreaterThan(0);
@@ -270,6 +276,10 @@ async function validateTraceAndEvent({
   expect(attrs['gen_ai.provider.name'].stringValue).toBe('openai');
   expect(meta['gen_ai.request.model']).toBe(args.model);
   expect(attrs['gen_ai.request.model'].stringValue).toBe(args.model);
+  expect(meta['gen_ai.operation.name']).toBe(otelSemanticName);
+  expect(attrs['gen_ai.operation.name'].stringValue).toBe(otelSemanticName);
+  expect(meta['gen_ai.operation.source_name']).toBe(opName);
+  expect(attrs['gen_ai.operation.source_name'].stringValue).toBe(opName);
 
   // -- Response
   if (OPERATION_REQUIRED_ATTRIBUTES_MAP[opName].id) {

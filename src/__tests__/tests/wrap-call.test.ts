@@ -16,9 +16,9 @@ import {
   STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   StatsigGenAISpanType,
   StatsigSpanType,
-} from '../otel/conventions';
-import { OtelSingleton } from '../otel/singleton';
-import { startWorkflow, wrap } from '../wrappers/wrap-call';
+} from '../../otel/conventions';
+import { OtelSingleton } from '../../otel/singleton';
+import { startWorkflow, wrap } from '../../wrappers/wrap-call';
 
 describe('wrap-call', () => {
   let contextManager: AsyncLocalStorageContextManager;

@@ -29,6 +29,13 @@ import {
 } from './attribute-helper';
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
+const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
+  'openai.chat.completions.create': 'chat',
+  'openai.completions.create': 'text_completion',
+  'openai.embeddings.create': 'embeddings',
+  'openai.images.generate': 'images.generate',
+  'openai.responses.create': 'responses.create',
+};
 
 type ResponseWithData<T> = {
   response?: Response;
@@ -62,49 +69,49 @@ export class StatsigOpenAIProxy {
   get client(): OpenAILike {
     const self = this;
 
+    const createCompletionsProxy = (target: any, opName: string) => {
+      return new Proxy(target, {
+        get(innerTarget, innerName, innerRecv) {
+          const original = Reflect.get(innerTarget, innerName, innerRecv);
+          if (innerName === 'create') {
+            return self.wrapMaybeStreamMethod(
+              original.bind(innerTarget),
+              opName,
+              true,
+            );
+          }
+          return original;
+        },
+      });
+    };
+
     const chat = new Proxy(this.openai.chat, {
       get(target, name, recv) {
         if (name === 'completions') {
           const completionsTarget = Reflect.get(target, name, recv);
-
-          return new Proxy(completionsTarget, {
-            get(innerTarget, innerName, innerRecv) {
-              const original = Reflect.get(innerTarget, innerName, innerRecv);
-              if (innerName === 'create') {
-                return self.wrapMaybeStreamMethod(
-                  original.bind(innerTarget),
-                  'chat',
-                  true,
-                );
-              }
-              return original;
-            },
-          });
+          return createCompletionsProxy(
+            completionsTarget,
+            'openai.chat.completions.create',
+          );
         }
 
         return Reflect.get(target, name, recv);
       },
     });
 
-    const completion = new Proxy(this.openai.completions, {
-      get(target, name, recv) {
-        const original = Reflect.get(target, name, recv);
-        if (name === 'create') {
-          return self.wrapMaybeStreamMethod(
-            original.bind(target),
-            'text_completion',
-            true,
-          );
-        }
-        return original;
-      },
-    });
+    const completions = createCompletionsProxy(
+      this.openai.completions,
+      'openai.completions.create',
+    );
 
     const embeddings = new Proxy(this.openai.embeddings, {
       get(target, name, recv) {
         const original = Reflect.get(target, name, recv);
         if (name === 'create') {
-          return self.wrapMethod(original.bind(target), 'embeddings');
+          return self.wrapMethod(
+            original.bind(target),
+            'openai.embeddings.create',
+          );
         }
         return original;
       },
@@ -114,7 +121,10 @@ export class StatsigOpenAIProxy {
       get(target, name, recv) {
         const original = Reflect.get(target, name, recv);
         if (name === 'generate') {
-          return self.wrapMethod(original.bind(target), 'images.generate');
+          return self.wrapMethod(
+            original.bind(target),
+            'openai.images.generate',
+          );
         }
         return original;
       },
@@ -127,15 +137,18 @@ export class StatsigOpenAIProxy {
           case 'create':
             return self.wrapMaybeStreamMethod(
               original.bind(target),
-              'responses.create',
+              'openai.responses.create',
             );
           case 'stream':
             return self.wrapMaybeStreamMethod(
               original.bind(target),
-              'responses.stream',
+              'openai.responses.stream',
             );
           case 'parse':
-            return self.wrapMethod(original.bind(target), 'responses.parse');
+            return self.wrapMethod(
+              original.bind(target),
+              'openai.responses.parse',
+            );
           default:
             return original;
         }
@@ -148,7 +161,7 @@ export class StatsigOpenAIProxy {
           case 'chat':
             return chat;
           case 'completions':
-            return completion;
+            return completions;
           case 'embeddings':
             return embeddings;
           case 'images':
@@ -168,7 +181,7 @@ export class StatsigOpenAIProxy {
     options: unknown,
     opName: string,
   ): Promise<ResponseWithData<Result>> {
-    const spanName = `${opName} ${params.model ?? 'unknown'}`;
+    const spanName = `${OP_TO_OTEL_SEMANTIC_MAP[opName]} ${params.model ?? 'unknown'}`;
     const telemetry = this.startSpan(
       spanName,
       opName,
@@ -257,7 +270,7 @@ export class StatsigOpenAIProxy {
     opName: string,
   ): (params: Params, options?: unknown) => Promise<any> {
     return async (params: Params, options?: unknown) => {
-      const spanName = `${opName} ${params.model ?? 'unknown'}`;
+      const spanName = `${OP_TO_OTEL_SEMANTIC_MAP[opName]} ${params.model ?? 'unknown'}`;
       const telemetry = this.startSpan(
         spanName,
         opName,
@@ -508,6 +521,8 @@ function extractOAIBaseAttributes(
   const attrs: Record<string, AttributeValue> = {
     ...extractBaseAttributes(operationName, params, options),
   };
+  attrs['gen_ai.operation.name'] = OP_TO_OTEL_SEMANTIC_MAP[operationName];
+  attrs['gen_ai.operation.source_name'] = operationName;
   attrs['gen_ai.provider.name'] = 'openai';
   attrs['gen_ai.request.model'] = params.model;
   const requestTier = params.service_tier ?? 'auto';
