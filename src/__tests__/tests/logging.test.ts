@@ -64,7 +64,7 @@ describe('Logging', () => {
       expect(event.metadata.score).toBe('0.5');
       expect(event.metadata.session_id).toBe('test-session-id');
       expect(event.metadata.ai_config_name).toBe('test_prompt');
-      expect(event.metadata.grader_id).toBe('test-grader-name');
+      expect(event.metadata.grader_name).toBe('test-grader-name');
     });
   });
 });

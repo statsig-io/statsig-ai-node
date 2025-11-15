@@ -163,7 +163,7 @@ export class StatsigAIInstance {
         session_id: sessionId ?? '',
         version_name: promptVersion.getName(),
         version_id: promptVersion.getID(),
-        grader_id: graderName,
+        grader_name: graderName,
         ai_config_name: promptVersion.getPromptName(),
       },
     );
