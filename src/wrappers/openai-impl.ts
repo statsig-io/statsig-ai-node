@@ -22,6 +22,7 @@ import {
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigSpanType,
 } from '../otel/conventions';
+import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
 import { OtelSingleton } from '../otel/singleton';
 import {
   extractBaseAttributes,
@@ -358,6 +359,11 @@ export class StatsigOpenAIProxy {
       typeof maybeContextPromptVersion === 'string'
     ) {
       statsigAttrs[STATSIG_ATTR_LLM_PROMPT_VERSION] = maybeContextPromptVersion;
+    }
+
+    const maybeStatsigContextAttrs = getStatsigSpanAttrsFromContext(ctx);
+    if (maybeStatsigContextAttrs) {
+      Object.assign(statsigAttrs, maybeStatsigContextAttrs);
     }
 
     const attributes: Record<string, AttributeValue | undefined> = {

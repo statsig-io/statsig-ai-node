@@ -17,6 +17,10 @@ import {
   setUserSpanAttrsFromContext,
   setUserToContext,
 } from '../otel/user-context';
+import {
+  setStatsigContextToContext,
+  setStatsigSpanAttrsFromContext,
+} from '../otel/statsig-context';
 import { StatsigUser } from '@statsig/statsig-node-core';
 
 type ToolInput = {
@@ -33,6 +37,7 @@ type NamedInput = {
 type WrapCallInput = (NamedInput | ToolInput) & {
   attributes?: Record<string, AttributeValue>;
   user?: StatsigUser;
+  activityID?: string;
 };
 
 const NAME_PREFIX = 'gen_ai.';
@@ -50,13 +55,21 @@ export function wrap<TFun extends (...args: any[]) => any>(
   function wrappedFunction(...args: Parameters<TFun>): ReturnType<TFun> {
     const opName = NAME_PREFIX + OpNameByType[input.type];
     let ctx = context.active();
-    ctx = input.user ? setUserToContext(ctx, input.user) : ctx;
+
+    if (input.user || input.activityID) {
+      ctx = setStatsigContextToContext(ctx, {
+        user: input.user,
+        activityID: input.activityID,
+      });
+    }
+
     const result = tracer.startActiveSpan(opName, {}, ctx, (span) => {
       try {
         span.setAttributes(input.attributes || {});
         span.setAttribute(STATSIG_ATTR_SPAN_TYPE, StatsigSpanType.gen_ai);
 
         setUserSpanAttrsFromContext(context.active(), span);
+        setStatsigSpanAttrsFromContext(context.active(), span);
         assignAttributesForInputType(input, span);
 
         span.setStatus({ code: SpanStatusCode.OK });

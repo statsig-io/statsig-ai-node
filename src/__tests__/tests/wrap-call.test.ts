@@ -8,6 +8,7 @@ import {
 import { StatsigUser } from '@statsig/statsig-node-core';
 
 import {
+  STATSIG_ATTR_ACTIVITY_ID,
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
@@ -156,5 +157,133 @@ describe('wrap-call', () => {
     expect(attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE]).toBe(
       StatsigGenAISpanType.workflow,
     );
+  });
+
+  describe('Statsig context propagation', () => {
+    it('sets statsig context with user and activityID', async () => {
+      const user = new StatsigUser({
+        userID: 'test-user-123',
+        customIDs: { sessionID: 'session-456' },
+      });
+      const activityID = 'activity-789';
+
+      const wrapped = wrap(
+        {
+          type: 'tool',
+          name: 'test-tool',
+          user,
+          activityID,
+        },
+        () => 'success',
+      );
+
+      expect(wrapped()).toBe('success');
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+
+      const span = spans[0];
+      expect(span.name).toBe('gen_ai.execute_tool');
+      expect(span.status.code).toBe(SpanStatusCode.OK);
+
+      const attributes = span.attributes as Record<string, unknown>;
+      expect(attributes[STATSIG_ATTR_USER_ID]).toBe('test-user-123');
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
+        JSON.stringify({ sessionID: 'session-456' }),
+      );
+      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('activity-789');
+    });
+
+    it('sets statsig context with only activityID when user is not provided', async () => {
+      const activityID = 'activity-only-123';
+
+      const wrapped = wrap(
+        {
+          type: 'workflow',
+          name: 'test-workflow',
+          activityID,
+        },
+        () => 'done',
+      );
+
+      expect(wrapped()).toBe('done');
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+
+      const span = spans[0];
+      expect(span.name).toBe('gen_ai.workflow');
+      expect(span.status.code).toBe(SpanStatusCode.OK);
+
+      const attributes = span.attributes as Record<string, unknown>;
+      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('activity-only-123');
+      expect(attributes[STATSIG_ATTR_USER_ID]).toBeUndefined();
+    });
+
+    it('sets statsig context with only user when activityID is not provided', async () => {
+      const user = new StatsigUser({
+        userID: 'user-only-456',
+      });
+
+      const wrapped = wrap(
+        {
+          type: 'tool',
+          name: 'test-tool',
+          user,
+        },
+        () => 'result',
+      );
+
+      expect(wrapped()).toBe('result');
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+
+      const span = spans[0];
+      expect(span.name).toBe('gen_ai.execute_tool');
+      expect(span.status.code).toBe(SpanStatusCode.OK);
+
+      const attributes = span.attributes as Record<string, unknown>;
+      expect(attributes[STATSIG_ATTR_USER_ID]).toBe('user-only-456');
+      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBeUndefined();
+    });
+
+    it('propagates statsig context in async wrapped functions', async () => {
+      const user = new StatsigUser({
+        userID: 'async-user-789',
+      });
+      const activityID = 'async-activity-999';
+
+      const wrapped = wrap(
+        {
+          type: 'workflow',
+          name: 'async-workflow',
+          user,
+          activityID,
+        },
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return 'async-result';
+        },
+      );
+
+      const result = await wrapped();
+      expect(result).toBe('async-result');
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+
+      const span = spans[0];
+      expect(span.name).toBe('gen_ai.workflow');
+      expect(span.status.code).toBe(SpanStatusCode.OK);
+
+      const attributes = span.attributes as Record<string, unknown>;
+      expect(attributes[STATSIG_ATTR_USER_ID]).toBe('async-user-789');
+      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('async-activity-999');
+    });
   });
 });
