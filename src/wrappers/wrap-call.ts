@@ -4,7 +4,7 @@ import {
   Span,
   SpanStatusCode,
 } from '@opentelemetry/api';
-import { OtelSingleton } from '../otel/singleton';
+import { StatsigUser } from '@statsig/statsig-node-core';
 import {
   STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   STATSIG_ATTR_SPAN_LLM_ROOT,
@@ -13,15 +13,12 @@ import {
   StatsigGenAISpanType,
   StatsigSpanType,
 } from '../otel/conventions';
-import {
-  setUserSpanAttrsFromContext,
-  setUserToContext,
-} from '../otel/user-context';
+import { OtelSingleton } from '../otel/singleton';
 import {
   setStatsigContextToContext,
   setStatsigSpanAttrsFromContext,
 } from '../otel/statsig-context';
-import { StatsigUser } from '@statsig/statsig-node-core';
+import { setUserSpanAttrsFromContext } from '../otel/user-context';
 
 type ToolInput = {
   type: 'tool';
@@ -42,7 +39,7 @@ type WrapCallInput = (NamedInput | ToolInput) & {
 
 const NAME_PREFIX = 'gen_ai.';
 const OpNameByType: Record<WrapCallInput['type'], string> = {
-  workflow: 'workflow',
+  workflow: 'invoke_workflow',
   tool: 'execute_tool',
 } as const;
 
@@ -53,7 +50,7 @@ export function wrap<TFun extends (...args: any[]) => any>(
   const tracer = OtelSingleton.getTracerProvider().getTracer('wrap-call');
 
   function wrappedFunction(...args: Parameters<TFun>): ReturnType<TFun> {
-    const opName = NAME_PREFIX + OpNameByType[input.type];
+    const opName = OpNameByType[input.type];
     let ctx = context.active();
 
     if (input.user || input.activityID) {
@@ -133,7 +130,10 @@ export function startWorkflow<R>(
 
 function assignAttributesForInputType(input: WrapCallInput, span: Span) {
   if ('name' in input) {
-    span.setAttribute(NAME_PREFIX + input.type + '.name', input.name);
+    span.setAttribute(
+      'statsig.' + NAME_PREFIX + input.type + '.name',
+      input.name,
+    );
     if (input.type === 'tool' && input.toolType) {
       span.setAttribute(NAME_PREFIX + 'tool.type', input.toolType);
     }

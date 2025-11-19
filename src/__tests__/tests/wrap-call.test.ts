@@ -10,11 +10,11 @@ import { StatsigUser } from '@statsig/statsig-node-core';
 import {
   STATSIG_ATTR_ACTIVITY_ID,
   STATSIG_ATTR_CUSTOM_IDS,
+  STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
   STATSIG_ATTR_USER_ID,
   STATSIG_SPAN_LLM_ROOT_VALUE,
-  STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   StatsigGenAISpanType,
   StatsigSpanType,
 } from '../../otel/conventions';
@@ -81,7 +81,7 @@ describe('wrap-call', () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe('gen_ai.execute_tool');
+    expect(span.name).toBe('execute_tool');
     expect(span.status.code).toBe(SpanStatusCode.OK);
 
     const attributes = span.attributes as Record<string, unknown>;
@@ -89,7 +89,7 @@ describe('wrap-call', () => {
     expect(attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE]).toBe(
       StatsigGenAISpanType.tool,
     );
-    expect(attributes['gen_ai.tool.name']).toBe('search');
+    expect(attributes['statsig.gen_ai.tool.name']).toBe('search');
     expect(attributes['gen_ai.tool.type']).toBe('retrieval');
     expect(attributes['custom.attr']).toBe('provided');
     expect(attributes[STATSIG_ATTR_USER_ID]).toBe('user-123');
@@ -116,11 +116,11 @@ describe('wrap-call', () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe('gen_ai.workflow');
+    expect(span.name).toBe('invoke_workflow');
     expect(span.status.code).toBe(SpanStatusCode.ERROR);
 
     const attributes = span.attributes as Record<string, unknown>;
-    expect(attributes['gen_ai.workflow.name']).toBe('embedding');
+    expect(attributes['statsig.gen_ai.workflow.name']).toBe('embedding');
     expect(attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE]).toBe(
       StatsigGenAISpanType.workflow,
     );
@@ -147,7 +147,7 @@ describe('wrap-call', () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe('gen_ai.workflow');
+    expect(span.name).toBe('invoke_workflow');
 
     const attributes = span.attributes as Record<string, unknown>;
     expect(attributes['env.stage']).toBe('staging');
@@ -184,7 +184,7 @@ describe('wrap-call', () => {
       expect(spans).toHaveLength(1);
 
       const span = spans[0];
-      expect(span.name).toBe('gen_ai.execute_tool');
+      expect(span.name).toBe('execute_tool');
       expect(span.status.code).toBe(SpanStatusCode.OK);
 
       const attributes = span.attributes as Record<string, unknown>;
@@ -214,7 +214,7 @@ describe('wrap-call', () => {
       expect(spans).toHaveLength(1);
 
       const span = spans[0];
-      expect(span.name).toBe('gen_ai.workflow');
+      expect(span.name).toBe('invoke_workflow');
       expect(span.status.code).toBe(SpanStatusCode.OK);
 
       const attributes = span.attributes as Record<string, unknown>;
@@ -243,7 +243,7 @@ describe('wrap-call', () => {
       expect(spans).toHaveLength(1);
 
       const span = spans[0];
-      expect(span.name).toBe('gen_ai.execute_tool');
+      expect(span.name).toBe('execute_tool');
       expect(span.status.code).toBe(SpanStatusCode.OK);
 
       const attributes = span.attributes as Record<string, unknown>;
@@ -278,7 +278,7 @@ describe('wrap-call', () => {
       expect(spans).toHaveLength(1);
 
       const span = spans[0];
-      expect(span.name).toBe('gen_ai.workflow');
+      expect(span.name).toBe('invoke_workflow');
       expect(span.status.code).toBe(SpanStatusCode.OK);
 
       const attributes = span.attributes as Record<string, unknown>;
