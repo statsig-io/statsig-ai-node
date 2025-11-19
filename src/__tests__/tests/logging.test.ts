@@ -53,6 +53,10 @@ describe('Logging', () => {
       const promptVersion = prompt.getLive();
       statsigAI.logEvalGrade(user, promptVersion, 0.5, 'test-grader-name', {
         sessionId: 'test-session-id',
+        metadata: {
+          test: 'test',
+          activity_id: 'test-activity-id',
+        },
       });
       await statsigAI.flushEvents();
       const logEventRequests = scrapi
@@ -65,6 +69,8 @@ describe('Logging', () => {
       expect(event.metadata.session_id).toBe('test-session-id');
       expect(event.metadata.ai_config_name).toBe('test_prompt');
       expect(event.metadata.grader_name).toBe('test-grader-name');
+      expect(event.metadata.test).toBe('test');
+      expect(event.metadata.activity_id).toBe('test-activity-id');
     });
   });
 });
