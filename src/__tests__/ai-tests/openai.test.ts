@@ -60,7 +60,7 @@ const OPERATION_REQUIRED_ATTRIBUTES_MAP: Record<
   },
 };
 
-xdescribe('OpenAI Wrapper with Statsig Tracing', () => {
+describe('OpenAI Wrapper with Statsig Tracing', () => {
   let scrapi: MockScrapi;
   let options: StatsigOptions;
   let provider: BasicTracerProvider;

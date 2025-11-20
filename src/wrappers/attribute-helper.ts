@@ -1,15 +1,6 @@
 import { AttributeValue } from '@opentelemetry/api';
 import { GenAICaptureOptions } from './openai-configs';
 
-export function extractUsageAttributes(
-  usage: Record<string, any>,
-): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {};
-  attrs['gen_ai.usage.input_tokens'] = usage.prompt_tokens;
-  attrs['gen_ai.usage.output_tokens'] = usage.completion_tokens;
-  return attrs;
-}
-
 export function extractBaseAttributes(
   operationName: string,
   params: Record<string, any>,

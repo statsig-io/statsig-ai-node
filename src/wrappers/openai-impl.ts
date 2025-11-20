@@ -572,5 +572,11 @@ function extractOAIUsageAttributes(
     }
   }
 
+  // delete any token usage that is 0
+  for (const key in attrs) {
+    if (attrs[key] === 0) {
+      delete attrs[key];
+    }
+  }
   return attrs;
 }
