@@ -81,8 +81,7 @@ export class SpanTelemetry {
   public recordTimeToFirstToken(): void {
     const elapsed = Math.round(performance.now() - this.startTime);
     this.setAttributes({
-      'gen_ai.server.time_to_first_token': elapsed / 1000,
-      'gen_ai.server.time_to_first_token_ms': elapsed,
+      'statsig.gen_ai.server.time_to_first_token_ms': elapsed,
     });
   }
 

@@ -30,7 +30,6 @@ export function extractBaseAttributes(
   if (params.n && params.n !== 1)
     attrs['gen_ai.request.choice.count'] = params.n;
   attrs['gen_ai.request.seed'] = params.seed;
-  attrs['gen_ai.conversation.id'] = params.conversation_id;
   attrs['gen_ai.output.type'] = params.response_format?.type;
 
   const msgs = params.messages ?? params.input ?? [];
@@ -38,16 +37,17 @@ export function extractBaseAttributes(
     attrs['gen_ai.input.messages'] = msgs;
   }
   if (options.capture_all || options.capture_system_instructions) {
-    attrs['gen_ai.system.instructions'] = msgs.filter(
+    attrs['gen_ai.system_instructions'] = msgs.filter(
       (m: any) => m.role === 'system',
     );
   }
   if (options.capture_all || options.capture_tool_definitions) {
     attrs['gen_ai.tool.definitions'] = params.tools;
   }
-  if (operationName.includes('embeddings')) {
-    Object.assign(attrs, extractEmbeddingsAttributes(params));
-  }
+
+  Object.assign(attrs, extractEmbeddingsAttributes(params));
+  Object.assign(attrs, extractImageAttributes(params));
+
   return attrs;
 }
 
@@ -59,9 +59,9 @@ export function extractResponseAttributes(
   const res = response ?? {};
   attrs['gen_ai.response.id'] = res.id;
   attrs['gen_ai.response.model'] = res.model;
-
+  attrs['gen_ai.conversation.id'] = res.conversation_id;
   const outputMessages = res.choices ?? res.output;
-  const finishReasons = (res.choices ?? []).map((c: any) => c.finish_reason);
+  const finishReasons = (outputMessages ?? []).map((c: any) => c.finish_reason);
   if (finishReasons.length)
     attrs['gen_ai.response.finish_reasons'] = finishReasons;
   if (options.capture_all || options.capture_output_messages) {
@@ -76,5 +76,16 @@ function extractEmbeddingsAttributes(
   const attrs: Record<string, AttributeValue> = {};
   attrs['gen_ai.embeddings.dimension.count'] = params.dimensions;
   attrs['gen_ai.request.encoding_formats'] = [params.encoding_format];
+  return attrs;
+}
+
+function extractImageAttributes(
+  params: Record<string, any>,
+): Record<string, AttributeValue> {
+  const attrs: Record<string, AttributeValue> = {};
+  attrs['statsig.gen_ai.images.output_compression'] = params.output_compression;
+  attrs['statsig.gen_ai.images.output_format'] = params.output_format;
+  attrs['statsig.gen_ai.images.quality'] = params.quality;
+  attrs['statsig.gen_ai.images.size'] = params.size;
   return attrs;
 }

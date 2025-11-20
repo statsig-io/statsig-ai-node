@@ -34,8 +34,10 @@ const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
   'openai.chat.completions.create': 'chat',
   'openai.completions.create': 'text_completion',
   'openai.embeddings.create': 'embeddings',
-  'openai.images.generate': 'images.generate',
-  'openai.responses.create': 'responses.create',
+  'openai.images.generate': 'generate_content',
+  'openai.responses.create': 'generate_content',
+  'openai.responses.stream': 'generate_content',
+  'openai.responses.parse': 'generate_content',
 };
 
 type ResponseWithData<T> = {
@@ -282,8 +284,8 @@ export class StatsigOpenAIProxy {
         async () => {
           try {
             const data = await originalCall(params, options);
-            telemetry.setStatus({ code: SpanStatusCode.OK });
             telemetry.recordTimeToFirstToken();
+            telemetry.setStatus({ code: SpanStatusCode.OK });
             telemetry.setAttributes(
               extractSingleOAIResponseAttributes(
                 data ?? {},
@@ -392,16 +394,6 @@ function isAsyncIterable<T = any>(x: any): x is AsyncIterable<T> {
   return x && typeof x[Symbol.asyncIterator] === 'function';
 }
 
-function extractOAIUsageAttributes(
-  usage: Record<string, any>,
-): Record<string, AttributeValue> {
-  return {
-    'gen_ai.usage.input_tokens': usage.prompt_tokens ?? usage.input_tokens,
-    'gen_ai.usage.output_tokens':
-      usage.completion_tokens ?? usage.output_tokens,
-  };
-}
-
 function extractSingleOAIResponseAttributes(
   response: Record<string, any>,
   options: GenAICaptureOptions,
@@ -420,13 +412,14 @@ function parseOAIStreamingResponseIntoAttributes(
     return {};
   }
   const attrs: Record<string, any> = {};
-  const { id, model, choices, totalInputTokens, totalOutputTokens } =
+  const { id, model, choices, aggregatedAttrs } =
     aggregateStreamedChoices(chunks);
 
   attrs['gen_ai.response.id'] = id;
   attrs['gen_ai.response.model'] = model;
-  attrs['gen_ai.usage.input_tokens'] = totalInputTokens;
-  attrs['gen_ai.usage.output_tokens'] = totalOutputTokens;
+
+  Object.assign(attrs, aggregatedAttrs);
+
   attrs['gen_ai.response.finish_reasons'] = choices.map(
     (c: any) => c.finish_reason,
   );
@@ -449,8 +442,8 @@ function aggregateStreamedChoices(chunks: any[]) {
     }
   > = {};
 
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
+  const aggregatedAttrs: Record<string, AttributeValue> = {};
+
   let id = undefined;
   let model = undefined;
 
@@ -468,16 +461,15 @@ function aggregateStreamedChoices(chunks: any[]) {
     }
 
     const usage = chunk.usage;
-    if (typeof usage?.prompt_tokens === 'number') {
-      totalInputTokens += usage.prompt_tokens;
-    } else if (typeof usage?.input_tokens === 'number') {
-      totalInputTokens += usage.input_tokens;
-    }
+    if (usage) {
+      const chunkAttrs = extractOAIUsageAttributes(usage);
 
-    if (typeof usage?.completion_tokens === 'number') {
-      totalOutputTokens += usage.completion_tokens;
-    } else if (typeof usage?.output_tokens === 'number') {
-      totalOutputTokens += usage.output_tokens;
+      for (const [key, value] of Object.entries(chunkAttrs)) {
+        if (typeof value === 'number') {
+          aggregatedAttrs[key] =
+            ((aggregatedAttrs[key] as number) || 0) + value;
+        }
+      }
     }
 
     const choice = chunk.choices?.[0];
@@ -514,8 +506,7 @@ function aggregateStreamedChoices(chunks: any[]) {
     id,
     model,
     choices: Object.values(choicesMap),
-    totalInputTokens,
-    totalOutputTokens,
+    aggregatedAttrs,
   };
 }
 
@@ -535,5 +526,51 @@ function extractOAIBaseAttributes(
   if (requestTier !== 'auto') {
     attrs['openai.request.service_tier'] = requestTier;
   }
+  return attrs;
+}
+
+function extractOAIUsageAttributes(
+  usage: Record<string, any>,
+): Record<string, AttributeValue> {
+  const attrs: Record<string, AttributeValue> = {};
+
+  const inputTokens = usage.input_tokens ?? usage.prompt_tokens;
+  if (typeof inputTokens === 'number') {
+    attrs['gen_ai.usage.input_tokens'] = inputTokens;
+  }
+
+  const outputTokens = usage.output_tokens ?? usage.completion_tokens;
+  if (typeof outputTokens === 'number') {
+    attrs['gen_ai.usage.output_tokens'] = outputTokens;
+  }
+
+  if (typeof inputTokens === 'number' || typeof outputTokens === 'number') {
+    attrs['statsig.gen_ai.usage.total_tokens'] =
+      (inputTokens || 0) + (outputTokens || 0);
+  }
+
+  const inputDetails =
+    usage.input_tokens_details ?? usage.prompt_tokens_details;
+  if (inputDetails) {
+    if (typeof inputDetails.cached_tokens === 'number') {
+      attrs['statsig.gen_ai.usage.input_cached_tokens'] =
+        inputDetails.cached_tokens;
+    }
+
+    if (typeof inputDetails.audio_tokens === 'number') {
+      attrs['statsig.gen_ai.usage.input_audio_tokens'] =
+        inputDetails.audio_tokens;
+    }
+  }
+
+  const outputDetails =
+    usage.output_tokens_details ?? usage.completion_tokens_details;
+  if (outputDetails) {
+    if (typeof outputDetails.reasoning_tokens === 'number') {
+      attrs['statsig.gen_ai.usage.output_reasoning_tokens'] =
+        outputDetails.reasoning_tokens;
+    }
+  }
+
   return attrs;
 }
