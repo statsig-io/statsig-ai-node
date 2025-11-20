@@ -32,7 +32,8 @@ export function extractBaseAttributes(
   attrs['gen_ai.request.seed'] = params.seed;
   attrs['gen_ai.conversation.id'] = params.conversation_id;
   attrs['gen_ai.output.type'] = params.response_format?.type;
-  const msgs = params.messages ?? [];
+
+  const msgs = params.messages ?? params.input ?? [];
   if (options.capture_all || options.capture_input_messages) {
     attrs['gen_ai.input.messages'] = msgs;
   }
@@ -58,11 +59,13 @@ export function extractResponseAttributes(
   const res = response ?? {};
   attrs['gen_ai.response.id'] = res.id;
   attrs['gen_ai.response.model'] = res.model;
+
+  const outputMessages = res.choices ?? res.output;
   const finishReasons = (res.choices ?? []).map((c: any) => c.finish_reason);
   if (finishReasons.length)
     attrs['gen_ai.response.finish_reasons'] = finishReasons;
   if (options.capture_all || options.capture_output_messages) {
-    attrs['gen_ai.output.messages'] = res.choices;
+    attrs['gen_ai.output.messages'] = outputMessages;
   }
   return attrs;
 }

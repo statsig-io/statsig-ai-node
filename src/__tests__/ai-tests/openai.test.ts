@@ -1,21 +1,17 @@
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
+import { StatsigOptions } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import OpenAI from 'openai';
 import { initializeTracing, StatsigAI } from '../../index';
-import { StatsigOptions } from '@statsig/statsig-node-core';
 import { wrapOpenAI } from '../../wrappers/openai';
+import { GenAICaptureOptions } from '../../wrappers/openai-configs';
 import { MockScrapi } from '../shared/MockScrapi';
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import {
   getDCSFilePath,
-  validateOtelClientSpanBasics,
   getSpanAttributesMap,
+  validateOtelClientSpanBasics,
 } from '../shared/utils';
-import { GenAICaptureOptions } from '../../wrappers/openai-configs';
-import {
-  OPENAI_TEST_MODEL,
-  OPENAI_TEST_IMAGE_MODEL,
-  OPENAI_TEST_EMBEDDING_MODEL,
-} from './models';
+import { OPENAI_TEST_EMBEDDING_MODEL, OPENAI_TEST_MODEL } from './models';
 
 type OperationRequiredAttributes = {
   id: boolean;
@@ -192,6 +188,25 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       operationName: 'openai.responses.create',
       op: (c: any) => c.responses.create,
       args: { model: OPENAI_TEST_MODEL, input: 'Regular response test' },
+    },
+    {
+      name: 'openai.responses.create with capture options',
+      operationName: 'openai.responses.create',
+      op: (c: any) => c.responses.create,
+      args: {
+        model: OPENAI_TEST_MODEL,
+        input: [
+          {
+            role: 'user',
+            content: 'Test message with capture',
+            type: 'message',
+          },
+        ],
+      },
+      options: {
+        capture_input_messages: true,
+        capture_output_messages: true,
+      },
     },
     {
       name: 'openai.responses.create with stream',
