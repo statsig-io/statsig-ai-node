@@ -28,6 +28,10 @@ import {
   extractBaseAttributes,
   extractResponseAttributes,
 } from './attribute-helper';
+import {
+  createResourceAttributes,
+  StatsigResourceAttributes,
+} from '../otel/resources';
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
@@ -383,7 +387,19 @@ export class StatsigOpenAIProxy {
       ctx,
     );
 
-    const telemetry = new SpanTelemetry(span, spanName, this._maxJSONChars);
+    let resources: StatsigResourceAttributes;
+    if (OtelSingleton.isInitialized()) {
+      resources = OtelSingleton.getInstance().getResources();
+    } else {
+      resources = createResourceAttributes();
+    }
+
+    const telemetry = new SpanTelemetry(
+      span,
+      spanName,
+      this._maxJSONChars,
+      resources,
+    );
 
     telemetry.setAttributes(attributes);
     return telemetry;

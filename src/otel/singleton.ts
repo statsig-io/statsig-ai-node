@@ -1,5 +1,6 @@
 import { trace, type TracerProvider } from '@opentelemetry/api';
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
+import { StatsigResourceAttributes } from './resources';
 
 const globalForOtel = globalThis as typeof globalThis & {
   __statsig_ai_OtelSingleton?: OtelSingleton | null;
@@ -10,7 +11,14 @@ type InitializeOptions = {
 };
 
 export class OtelSingleton {
-  protected constructor(private tracerProvider: TracerProvider) {}
+  protected constructor(
+    private tracerProvider: TracerProvider,
+    private resources: StatsigResourceAttributes,
+  ) {}
+
+  static isInitialized(): boolean {
+    return globalForOtel.__statsig_ai_OtelSingleton != null;
+  }
 
   static getInstance(): OtelSingleton {
     return (
@@ -19,7 +27,10 @@ export class OtelSingleton {
     );
   }
 
-  static instantiate(options: InitializeOptions): OtelSingleton {
+  static instantiate(
+    options: InitializeOptions,
+    resources: StatsigResourceAttributes = {},
+  ): OtelSingleton {
     const instance = globalForOtel.__statsig_ai_OtelSingleton;
     if (instance != null) {
       console.warn(
@@ -29,6 +40,7 @@ export class OtelSingleton {
     }
     globalForOtel.__statsig_ai_OtelSingleton = new OtelSingleton(
       options.tracerProvider,
+      resources,
     );
     return globalForOtel.__statsig_ai_OtelSingleton;
   }
@@ -40,6 +52,10 @@ export class OtelSingleton {
 
   public getTracerProvider(): TracerProvider {
     return this.tracerProvider;
+  }
+
+  public getResources(): StatsigResourceAttributes {
+    return this.resources;
   }
 
   public static getTracerProvider(): TracerProvider {
@@ -63,7 +79,7 @@ export class OtelSingleton {
 
 class NoopOtelSingleton extends OtelSingleton {
   constructor() {
-    super(trace.getTracerProvider());
+    super(trace.getTracerProvider(), {});
   }
 
   public static getInstance(): NoopOtelSingleton {

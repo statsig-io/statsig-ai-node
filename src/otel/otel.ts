@@ -20,6 +20,10 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
+import {
+  createResourceAttributes,
+  StatsigResourceAttributes,
+} from './resources';
 
 type InitializeOptions = {
   // context manager options
@@ -82,14 +86,14 @@ export function initializeTracing(
     }
   }
 
-  const traceComponents = createTraceComponents(exporterOptions ?? {}, {
-    serviceName: options?.serviceName,
-    version: options?.version,
-    environment: options?.environment,
-  });
+  const resources = createResourceAttributes(options);
+  const traceComponents = createTraceComponents(
+    exporterOptions ?? {},
+    resources,
+  );
   const tracerProvider = globalTraceProvider || traceComponents.provider;
 
-  OtelSingleton.instantiate({ tracerProvider });
+  OtelSingleton.instantiate({ tracerProvider }, resources);
   if (enableGlobalTraceProviderRegistration) {
     otelTrace.setGlobalTracerProvider(tracerProvider);
   }
@@ -99,7 +103,7 @@ export function initializeTracing(
 
 function createTraceComponents(
   exporterOptions: StatsigOTLPTraceExporterOptions,
-  resources: Record<string, string | undefined> = {},
+  resources: StatsigResourceAttributes,
 ) {
   const exporter = new StatsigOTLPTraceExporter(exporterOptions);
   const processor = new StatsigSpanProcessor(exporter);
@@ -109,10 +113,9 @@ function createTraceComponents(
     sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       ...resources,
-      [ATTR_SERVICE_NAME]:
-        resources.serviceName || process.env.OTEL_SERVICE_NAME,
+      [ATTR_SERVICE_NAME]: resources.service,
       [ATTR_SERVICE_VERSION]: resources.version,
-      env: resources.environment || process.env.NODE_ENV,
+      env: resources.environment,
     }),
   });
 

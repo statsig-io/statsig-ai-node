@@ -60,6 +60,10 @@ const OPERATION_REQUIRED_ATTRIBUTES_MAP: Record<
   },
 };
 
+const TEST_SERVICE_NAME = 'statsig-ai-test';
+const TEST_VERSION = '1.0.0-test';
+const TEST_ENVIRONMENT = 'test';
+
 describe('OpenAI Wrapper with Statsig Tracing', () => {
   let scrapi: MockScrapi;
   let options: StatsigOptions;
@@ -87,9 +91,9 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
         dsn: scrapi.getUrlForPath('/otlp'),
         sdkKey: 'secret-test-key',
       },
-      serviceName: 'statsig-ai-test',
-      version: '1.0.0-test',
-      environment: 'test',
+      serviceName: TEST_SERVICE_NAME,
+      version: TEST_VERSION,
+      environment: TEST_ENVIRONMENT,
     });
     provider = resultingProvider;
     options = {
@@ -291,6 +295,10 @@ async function validateTraceAndEvent({
   const events = scrapi.getLoggedEvents('statsig::gen_ai');
   expect(events.length).toBeGreaterThan(0);
   const meta = events[0].metadata;
+  const user = events[0].user;
+
+  // validate service, env, and version
+  expectUserToIncludeResources(user);
 
   // -- Base/Request
   expect(meta['gen_ai.provider.name']).toBe('openai');
@@ -363,6 +371,8 @@ async function validateTraceAndEvent({
   expect(meta['span.trace_id']).toBeDefined();
   expect(meta['span.span_id']).toBeDefined();
   expect(meta['span.status_code']).toBeDefined();
+  expect(meta.duration).toBeDefined();
+  expect(parseInt(meta.duration)).toBeGreaterThan(0);
 }
 
 describe('Reasoning Tokens Capture with gpt-5-nano', () => {
@@ -392,9 +402,9 @@ describe('Reasoning Tokens Capture with gpt-5-nano', () => {
         dsn: scrapi.getUrlForPath('/otlp'),
         sdkKey: 'secret-test-key',
       },
-      serviceName: 'statsig-ai-test',
-      version: '1.0.0-test',
-      environment: 'test',
+      serviceName: TEST_SERVICE_NAME,
+      version: TEST_VERSION,
+      environment: TEST_ENVIRONMENT,
     });
     provider = resultingProvider;
     options = {
@@ -474,6 +484,7 @@ describe('Reasoning Tokens Capture with gpt-5-nano', () => {
     const events = scrapi.getLoggedEvents('statsig::gen_ai');
     expect(events.length).toBeGreaterThan(0);
     const meta = events[0].metadata;
+    const user = events[0].user;
 
     expect(meta['gen_ai.provider.name']).toBe('openai');
     expect(meta['gen_ai.request.model']).toBe(OPENAI_TEST_REASONING_MODEL);
@@ -484,6 +495,7 @@ describe('Reasoning Tokens Capture with gpt-5-nano', () => {
     expect(
       parseInt(meta['statsig.gen_ai.usage.output_reasoning_tokens']),
     ).toBeGreaterThan(0);
+    expectUserToIncludeResources(user);
 
     const msElapsed =
       attrs['statsig.gen_ai.server.time_to_first_token_ms'].intValue;
@@ -550,6 +562,7 @@ describe('Reasoning Tokens Capture with gpt-5-nano', () => {
     const events = scrapi.getLoggedEvents('statsig::gen_ai');
     expect(events.length).toBeGreaterThan(0);
     const meta = events[0].metadata;
+    const user = events[0].user;
 
     expect(meta['gen_ai.provider.name']).toBe('openai');
     expect(meta['gen_ai.request.model']).toBe(OPENAI_TEST_REASONING_MODEL);
@@ -561,9 +574,20 @@ describe('Reasoning Tokens Capture with gpt-5-nano', () => {
     expect(
       parseInt(meta['statsig.gen_ai.usage.output_reasoning_tokens']),
     ).toBeGreaterThan(0);
+    expectUserToIncludeResources(user);
 
     const msElapsed =
       attrs['statsig.gen_ai.server.time_to_first_token_ms'].intValue;
     expect(Math.abs(msElapsed - expectedDuration)).toBeLessThan(200);
   }, 7000);
 });
+
+function expectUserToIncludeResources(user: any) {
+  expect(user).toBeDefined();
+  expect(user.userID).toBe('statsig-ai-openai-wrapper');
+  expect(user.customIDs).toMatchObject({
+    service: TEST_SERVICE_NAME,
+    version: TEST_VERSION,
+    environment: TEST_ENVIRONMENT,
+  });
+}

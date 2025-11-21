@@ -1,5 +1,6 @@
 import { AttributeValue, Span, SpanStatusCode } from '@opentelemetry/api';
 import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
+import { StatsigResourceAttributes } from '../otel/resources';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
 const PLACEHOLDER_STATSIG_USER = new StatsigUser({
@@ -15,6 +16,7 @@ export class SpanTelemetry {
     public readonly span: Span,
     private readonly spanName: string,
     private readonly maxJSONChars: number,
+    private readonly otelResourceAttributes: StatsigResourceAttributes,
   ) {
     this.metadata['span.name'] = spanName;
     const ctx = span.spanContext();
@@ -122,12 +124,30 @@ export class SpanTelemetry {
       return;
     }
 
-    statsig.logEvent(
-      PLACEHOLDER_STATSIG_USER,
-      GEN_AI_EVENT_NAME,
-      spanName,
-      metadata,
-    );
+    const duration = Math.round(performance.now() - this.startTime);
+    const statsigEventMetadata: Record<string, string> = {
+      ...metadata,
+      duration: String(duration),
+    };
+
+    const user = new StatsigUser({
+      ...PLACEHOLDER_STATSIG_USER,
+      userID: PLACEHOLDER_STATSIG_USER.userID ?? undefined,
+      customIDs: {
+        ...PLACEHOLDER_STATSIG_USER.customIDs,
+        ...(this.otelResourceAttributes.service != null
+          ? { service: this.otelResourceAttributes.service }
+          : {}),
+        ...(this.otelResourceAttributes.version != null
+          ? { version: this.otelResourceAttributes.version }
+          : {}),
+        ...(this.otelResourceAttributes.environment != null
+          ? { environment: this.otelResourceAttributes.environment }
+          : {}),
+      },
+    });
+
+    statsig.logEvent(user, GEN_AI_EVENT_NAME, spanName, statsigEventMetadata);
   }
 }
 
