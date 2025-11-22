@@ -71,6 +71,7 @@ describe('Logging', () => {
       expect(event.metadata.grader_name).toBe('test-grader-name');
       expect(event.metadata.test).toBe('test');
       expect(event.metadata.activity_id).toBe('test-activity-id');
+      expect(event.metadata.is_live).toBe('true');
     });
   });
 });

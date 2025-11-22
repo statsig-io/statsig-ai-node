@@ -5,8 +5,8 @@ import { PromptVersion } from '../prompts/PromptVersion';
 export class AgentVersion {
   private _rootPrompt: PromptVersion;
 
-  constructor(rootConfig: DynamicConfig) {
-    this._rootPrompt = new PromptVersion(rootConfig);
+  constructor(rootConfig: DynamicConfig, isLiveForUser: boolean) {
+    this._rootPrompt = new PromptVersion(rootConfig, isLiveForUser);
   }
 
   getRoot(): PromptVersion {

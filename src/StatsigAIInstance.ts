@@ -165,6 +165,7 @@ export class StatsigAIInstance {
         version_id: promptVersion.getID(),
         grader_name: graderName,
         ai_config_name: promptVersion.getPromptName(),
+        is_live: promptVersion.isLiveForUser.toString(),
         ...(evalData.metadata ? evalData.metadata : {}),
       },
     );

@@ -25,8 +25,8 @@ export function makePrompt(
   return new Prompt(
     user,
     name,
-    new PromptVersion(liveConfig),
-    candidateConfigs.map((config) => new PromptVersion(config)),
+    new PromptVersion(liveConfig, true),
+    candidateConfigs.map((config) => new PromptVersion(config, false)),
   );
 }
 export class Prompt {

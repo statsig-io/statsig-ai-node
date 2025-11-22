@@ -28,12 +28,12 @@ export function makeAgentConfig(
       user,
       config.getValue('root', ''),
     );
-    return new AgentVersion(rootConfig);
+    return new AgentVersion(rootConfig, false);
   });
 
   return new AgentConfig(
     name,
-    new AgentVersion(liveRootConfig),
+    new AgentVersion(liveRootConfig, true),
     candidateRootAgents,
   );
 }

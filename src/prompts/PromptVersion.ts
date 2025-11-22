@@ -24,13 +24,15 @@ export class PromptVersion {
   private _evalModel: string;
   private _type: string;
   private _aiConfigName: string;
+  public readonly isLiveForUser: boolean;
 
-  constructor(promptVariant: DynamicConfig) {
+  constructor(promptVariant: DynamicConfig, isLiveForUser: boolean) {
     this.name = promptVariant.getValue('name', '');
     this._type = promptVariant.getValue('type', '');
     this._aiConfigName = promptVariant.getValue('aiConfigName', '');
     const parts = promptVariant.name.split(':');
     this._id = parts.length > 1 ? parts[1] : '';
+    this.isLiveForUser = isLiveForUser;
 
     this._promptVariant = promptVariant;
     this._temperature = promptVariant.getValue('temperature', null);
