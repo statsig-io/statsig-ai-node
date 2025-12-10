@@ -3,6 +3,7 @@ import { StatsigOptions } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import OpenAI from 'openai';
 import { initializeTracing, StatsigAI } from '../../index';
+import { OtelSingleton } from '../../otel/singleton';
 import { wrapOpenAI } from '../../wrappers/openai';
 import { GenAICaptureOptions } from '../../wrappers/openai-configs';
 import { MockScrapi } from '../shared/MockScrapi';
@@ -12,11 +13,10 @@ import {
   validateOtelClientSpanBasics,
 } from '../shared/utils';
 import {
-  OPENAI_TEST_MODEL,
   OPENAI_TEST_EMBEDDING_MODEL,
+  OPENAI_TEST_MODEL,
   OPENAI_TEST_REASONING_MODEL,
 } from './models';
-import { OtelSingleton } from '../../otel/singleton';
 
 type OperationRequiredAttributes = {
   id: boolean;
@@ -348,6 +348,11 @@ async function validateTraceAndEvent({
   if (options.capture_input_messages) {
     expect(meta['gen_ai.input.messages']).toBeDefined();
     expect(attrs['gen_ai.input.messages']).toBeDefined();
+    expect(meta['gen_ai.input.messages_len']).toBeDefined();
+    const inputMessages = args.messages ?? args.input ?? [];
+    expect(attrs['gen_ai.input.messages_len'].intValue).toBe(
+      JSON.stringify(inputMessages).length,
+    );
   }
 
   // -- Embedding

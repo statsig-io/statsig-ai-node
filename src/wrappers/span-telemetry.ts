@@ -48,9 +48,8 @@ export class SpanTelemetry {
         key,
         isTruncated ? json.slice(0, this.maxJSONChars) + '…(truncated)' : json,
       );
-      if (isTruncated) {
-        this.setAttributeOnSpanAndMetadata(`${key}_len`, json.length);
-      }
+
+      this.setAttributeOnSpanAndMetadata(`${key}_len`, json.length);
     } catch {
       this.setAttributeOnSpanAndMetadata(key, '[[unserializable]]');
     }
