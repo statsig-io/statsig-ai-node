@@ -96,6 +96,7 @@ describe('Statsig Context with Activity ID', () => {
         expectedUserID: 'test-user-456',
         expectedCustomIDs: {
           orgID: 'test-org-789',
+          [STATSIG_ATTR_ACTIVITY_ID]: activityID,
         },
         spanName: `chat ${OPENAI_TEST_MODEL}`,
       });
@@ -118,6 +119,7 @@ describe('Statsig Context with Activity ID', () => {
         expectedUserID: 'embedding-user-123',
         expectedCustomIDs: {
           sessionID: 'session-abc',
+          [STATSIG_ATTR_ACTIVITY_ID]: activityID,
         },
         spanName: `embeddings ${OPENAI_TEST_EMBEDDING_MODEL}`,
       });
@@ -194,7 +196,9 @@ describe('Statsig Context with Activity ID', () => {
         const attrs = getSpanAttributesMap(span);
         expect(attrs['statsig.user_id']).toBeDefined();
         expect(attrs['statsig.user_id'].stringValue).toBe('multi-op-user');
-        expect(attrs['statsig.custom_ids']).toBeUndefined();
+        expect(attrs['statsig.custom_ids']).toBeDefined();
+        const customIDs = JSON.parse(attrs['statsig.custom_ids'].stringValue);
+        expect(customIDs[STATSIG_ATTR_ACTIVITY_ID]).toBe(activityID);
       });
 
       const events = scrapi.getLoggedEvents('statsig::gen_ai');

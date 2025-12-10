@@ -1,6 +1,7 @@
 import { AttributeValue, context, Context, Span } from '@opentelemetry/api';
 import { StatsigUser } from '@statsig/statsig-node-core';
 import {
+  STATSIG_ATTR_ACTIVITY_ID,
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_USER_ID,
   STATSIG_CTX_KEY_ACTIVE_CONTEXT,
@@ -58,10 +59,14 @@ export function getStatsigSpanAttrsFromContext(
 
   if (maybeContext.user) {
     attrs[STATSIG_ATTR_USER_ID] = maybeContext.user.userID ?? 'null';
-    if (Object.keys(maybeContext.user.customIDs).length > 0) {
-      attrs[STATSIG_ATTR_CUSTOM_IDS] = JSON.stringify(
-        maybeContext.user.customIDs,
-      );
+
+    const customIDs = { ...(maybeContext.user.customIDs ?? {}) };
+    if (maybeContext.activityID) {
+      customIDs[STATSIG_ATTR_ACTIVITY_ID] = maybeContext.activityID;
+    }
+
+    if (Object.keys(customIDs).length > 0) {
+      attrs[STATSIG_ATTR_CUSTOM_IDS] = JSON.stringify(customIDs);
     }
   }
 

@@ -192,6 +192,7 @@ describe('wrap-call', () => {
       expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
         JSON.stringify({
           sessionID: 'session-456',
+          [STATSIG_ATTR_ACTIVITY_ID]: activityID,
         }),
       );
     });
@@ -287,7 +288,9 @@ describe('wrap-call', () => {
       const attributes = span.attributes as Record<string, unknown>;
       expect(attributes[STATSIG_ATTR_USER_ID]).toBe('async-user-789');
 
-      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBeUndefined();
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: 'async-activity-999' }),
+      );
     });
   });
 });
