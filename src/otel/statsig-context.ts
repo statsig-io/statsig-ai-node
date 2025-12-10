@@ -1,7 +1,6 @@
 import { AttributeValue, context, Context, Span } from '@opentelemetry/api';
 import { StatsigUser } from '@statsig/statsig-node-core';
 import {
-  STATSIG_ATTR_ACTIVITY_ID,
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_USER_ID,
   STATSIG_CTX_KEY_ACTIVE_CONTEXT,
@@ -24,15 +23,15 @@ export function setStatsigContextToContext(
 ): Context {
   const contextItem: StatsigContextItem = {};
 
-  if (statsigContext.user || statsigContext.activityID) {
-    const customIDs = { ...(statsigContext.user?.customIDs ?? {}) };
-    if (statsigContext.activityID) {
-      customIDs[STATSIG_ATTR_ACTIVITY_ID] = statsigContext.activityID;
-    }
+  if (statsigContext.user) {
     contextItem.user = {
       userID: statsigContext.user?.userID || 'unknown',
-      customIDs,
+      customIDs: statsigContext.user.customIDs ?? {},
     };
+  }
+
+  if (statsigContext.activityID) {
+    contextItem.activityID = statsigContext.activityID;
   }
   return ctx.setValue(STATSIG_CTX_KEY_ACTIVE_CONTEXT, contextItem);
 }

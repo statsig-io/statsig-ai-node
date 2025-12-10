@@ -1,6 +1,13 @@
-import { AttributeValue, Span, SpanStatusCode } from '@opentelemetry/api';
+import {
+  AttributeValue,
+  context,
+  Span,
+  SpanStatusCode,
+} from '@opentelemetry/api';
 import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
+import { STATSIG_ATTR_ACTIVITY_ID } from '../otel/conventions';
 import { StatsigResourceAttributes } from '../otel/resources';
+import { getStatsigContextFromContext } from '../otel/statsig-context';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
 const PLACEHOLDER_STATSIG_USER = new StatsigUser({
@@ -129,6 +136,9 @@ export class SpanTelemetry {
       duration: String(duration),
     };
 
+    const ctx = context.active();
+    const statsigContext = getStatsigContextFromContext(ctx);
+
     const user = new StatsigUser({
       ...PLACEHOLDER_STATSIG_USER,
       userID: PLACEHOLDER_STATSIG_USER.userID ?? undefined,
@@ -142,6 +152,9 @@ export class SpanTelemetry {
           : {}),
         ...(this.otelResourceAttributes.environment != null
           ? { environment: this.otelResourceAttributes.environment }
+          : {}),
+        ...(statsigContext?.activityID
+          ? { [STATSIG_ATTR_ACTIVITY_ID]: statsigContext.activityID }
           : {}),
       },
     });
