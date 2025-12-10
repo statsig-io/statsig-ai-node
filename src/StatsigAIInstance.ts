@@ -6,10 +6,11 @@ import {
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
 import { AIEvalGradeData } from './AIGradingData';
+import { STATSIG_ATTR_ACTIVITY_ID } from './otel/conventions';
+import { OtelSingleton } from './otel/singleton';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { PromptVersion } from './prompts/PromptVersion';
-import { OtelSingleton } from './otel/singleton';
 
 export interface StatsigCreateConfig {
   sdkKey: string;
@@ -146,12 +147,19 @@ export class StatsigAIInstance {
     graderName: string,
     evalData: AIEvalGradeData,
   ): void {
-    const { sessionId } = evalData;
+    const { sessionId, activityId } = evalData;
     if (score < 0 || score > 1) {
       console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
       );
       return;
+    }
+
+    if (activityId) {
+      user.customIDs = {
+        ...user.customIDs,
+        [STATSIG_ATTR_ACTIVITY_ID]: activityId,
+      };
     }
 
     this._statsig.logEvent(

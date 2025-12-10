@@ -1,7 +1,8 @@
-import { MockScrapi } from '../shared/MockScrapi';
-import { StatsigAI } from '../..';
 import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
+import { StatsigAI } from '../..';
+import { STATSIG_ATTR_ACTIVITY_ID } from '../../otel/conventions';
+import { MockScrapi } from '../shared/MockScrapi';
 import { getDCSFilePath } from '../shared/utils';
 
 describe('Logging', () => {
@@ -53,9 +54,9 @@ describe('Logging', () => {
       const promptVersion = prompt.getLive();
       statsigAI.logEvalGrade(user, promptVersion, 0.5, 'test-grader-name', {
         sessionId: 'test-session-id',
+        activityId: 'test-activity-id',
         metadata: {
           test: 'test',
-          activity_id: 'test-activity-id',
         },
       });
       await statsigAI.flushEvents();
@@ -63,6 +64,7 @@ describe('Logging', () => {
         .getLoggedEvents()
         .filter((event) => event.eventName === 'statsig::eval_result');
       const event = logEventRequests[0];
+
       expect(event.metadata.version_name).toBe('Version 1');
       expect(event.metadata.version_id).toBe('6KGzeo8TR9JTL7CZl7vccd');
       expect(event.metadata.score).toBe('0.5');
@@ -70,8 +72,10 @@ describe('Logging', () => {
       expect(event.metadata.ai_config_name).toBe('test_prompt');
       expect(event.metadata.grader_name).toBe('test-grader-name');
       expect(event.metadata.test).toBe('test');
-      expect(event.metadata.activity_id).toBe('test-activity-id');
       expect(event.metadata.is_live).toBe('true');
+      expect(event.user.customIDs).toMatchObject({
+        [STATSIG_ATTR_ACTIVITY_ID]: 'test-activity-id',
+      });
     });
   });
 });

@@ -190,9 +190,11 @@ describe('wrap-call', () => {
       const attributes = span.attributes as Record<string, unknown>;
       expect(attributes[STATSIG_ATTR_USER_ID]).toBe('test-user-123');
       expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
-        JSON.stringify({ sessionID: 'session-456' }),
+        JSON.stringify({
+          sessionID: 'session-456',
+          [STATSIG_ATTR_ACTIVITY_ID]: 'activity-789',
+        }),
       );
-      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('activity-789');
     });
 
     it('sets statsig context with only activityID when user is not provided', async () => {
@@ -218,8 +220,11 @@ describe('wrap-call', () => {
       expect(span.status.code).toBe(SpanStatusCode.OK);
 
       const attributes = span.attributes as Record<string, unknown>;
-      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('activity-only-123');
-      expect(attributes[STATSIG_ATTR_USER_ID]).toBeUndefined();
+
+      expect(attributes[STATSIG_ATTR_USER_ID]).toBe('unknown');
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: 'activity-only-123' }),
+      );
     });
 
     it('sets statsig context with only user when activityID is not provided', async () => {
@@ -283,7 +288,10 @@ describe('wrap-call', () => {
 
       const attributes = span.attributes as Record<string, unknown>;
       expect(attributes[STATSIG_ATTR_USER_ID]).toBe('async-user-789');
-      expect(attributes[STATSIG_ATTR_ACTIVITY_ID]).toBe('async-activity-999');
+
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: 'async-activity-999' }),
+      );
     });
   });
 });

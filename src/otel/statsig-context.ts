@@ -24,17 +24,16 @@ export function setStatsigContextToContext(
 ): Context {
   const contextItem: StatsigContextItem = {};
 
-  if (statsigContext.user) {
+  if (statsigContext.user || statsigContext.activityID) {
+    const customIDs = { ...(statsigContext.user?.customIDs ?? {}) };
+    if (statsigContext.activityID) {
+      customIDs[STATSIG_ATTR_ACTIVITY_ID] = statsigContext.activityID;
+    }
     contextItem.user = {
-      userID: statsigContext.user.userID || 'unknown',
-      customIDs: statsigContext.user.customIDs ?? {},
+      userID: statsigContext.user?.userID || 'unknown',
+      customIDs,
     };
   }
-
-  if (statsigContext.activityID) {
-    contextItem.activityID = statsigContext.activityID;
-  }
-
   return ctx.setValue(STATSIG_CTX_KEY_ACTIVE_CONTEXT, contextItem);
 }
 
@@ -65,10 +64,6 @@ export function getStatsigSpanAttrsFromContext(
         maybeContext.user.customIDs,
       );
     }
-  }
-
-  if (maybeContext.activityID) {
-    attrs[STATSIG_ATTR_ACTIVITY_ID] = maybeContext.activityID;
   }
 
   return Object.keys(attrs).length > 0 ? attrs : null;

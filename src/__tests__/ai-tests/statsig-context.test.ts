@@ -1,17 +1,18 @@
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
+import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
 import fs from 'fs';
 import OpenAI from 'openai';
 import { initializeTracing, StatsigAI } from '../../index';
-import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
+import { STATSIG_ATTR_ACTIVITY_ID } from '../../otel/conventions';
+import { withStatsigContext } from '../../otel/statsig-context';
 import { wrapOpenAI } from '../../wrappers/openai';
 import { MockScrapi } from '../shared/MockScrapi';
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import {
   getDCSFilePath,
-  validateOtelClientSpanBasics,
   getSpanAttributesMap,
+  validateOtelClientSpanBasics,
 } from '../shared/utils';
-import { withStatsigContext } from '../../otel/statsig-context';
-import { OPENAI_TEST_MODEL, OPENAI_TEST_EMBEDDING_MODEL } from './models';
+import { OPENAI_TEST_EMBEDDING_MODEL, OPENAI_TEST_MODEL } from './models';
 
 describe('Statsig Context with Activity ID', () => {
   let scrapi: MockScrapi;
@@ -93,7 +94,10 @@ describe('Statsig Context with Activity ID', () => {
         scrapi,
         expectedActivityID: activityID,
         expectedUserID: 'test-user-456',
-        expectedCustomIDs: { orgID: 'test-org-789' },
+        expectedCustomIDs: {
+          orgID: 'test-org-789',
+          [STATSIG_ATTR_ACTIVITY_ID]: activityID,
+        },
         spanName: `chat ${OPENAI_TEST_MODEL}`,
       });
     });
@@ -113,7 +117,10 @@ describe('Statsig Context with Activity ID', () => {
         scrapi,
         expectedActivityID: activityID,
         expectedUserID: 'embedding-user-123',
-        expectedCustomIDs: { sessionID: 'session-abc' },
+        expectedCustomIDs: {
+          sessionID: 'session-abc',
+          [STATSIG_ATTR_ACTIVITY_ID]: activityID,
+        },
         spanName: `embeddings ${OPENAI_TEST_EMBEDDING_MODEL}`,
       });
     });
@@ -135,19 +142,21 @@ describe('Statsig Context with Activity ID', () => {
       );
       const attrs = getSpanAttributesMap(span);
 
-      expect(attrs['statsig.activity_id']).toBeDefined();
-      expect(attrs['statsig.activity_id'].stringValue).toBe(activityID);
-
-      expect(attrs['statsig.user_id']).toBeUndefined();
-      expect(attrs['statsig.custom_ids']).toBeUndefined();
+      expect(attrs['statsig.user_id']).toBeDefined();
+      expect(attrs['statsig.user_id'].stringValue).toBe('unknown');
+      expect(attrs['statsig.custom_ids']).toBeDefined();
+      expect(attrs['statsig.custom_ids'].stringValue).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: activityID }),
+      );
 
       const events = scrapi.getLoggedEvents('statsig::gen_ai');
       expect(events.length).toBeGreaterThan(0);
       const meta = events[0].metadata;
 
-      expect(meta['statsig.activity_id']).toBe(activityID);
-      expect(meta['statsig.user_id']).toBeUndefined();
-      expect(meta['statsig.custom_ids']).toBeUndefined();
+      expect(meta['statsig.user_id']).toBe('unknown');
+      expect(meta['statsig.custom_ids']).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: activityID }),
+      );
     });
 
     it('should handle multiple operations in separate contexts with same activity ID', async () => {
@@ -186,17 +195,19 @@ describe('Statsig Context with Activity ID', () => {
 
       allSpans.forEach((span: any) => {
         const attrs = getSpanAttributesMap(span);
-        expect(attrs['statsig.activity_id']).toBeDefined();
-        expect(attrs['statsig.activity_id'].stringValue).toBe(activityID);
         expect(attrs['statsig.user_id']).toBeDefined();
         expect(attrs['statsig.user_id'].stringValue).toBe('multi-op-user');
+        expect(attrs['statsig.custom_ids']).toBeDefined();
+        const customIDs = JSON.parse(attrs['statsig.custom_ids'].stringValue);
+        expect(customIDs[STATSIG_ATTR_ACTIVITY_ID]).toBe(activityID);
       });
 
       const events = scrapi.getLoggedEvents('statsig::gen_ai');
       expect(events.length).toBeGreaterThanOrEqual(2);
       events.forEach((event: any) => {
-        expect(event.metadata['statsig.activity_id']).toBe(activityID);
         expect(event.metadata['statsig.user_id']).toBe('multi-op-user');
+        const customIDs = JSON.parse(event.metadata['statsig.custom_ids']);
+        expect(customIDs[STATSIG_ATTR_ACTIVITY_ID]).toBe(activityID);
       });
     });
   });
@@ -240,9 +251,6 @@ async function validateActivityIDInTraceAndEvent({
   const span = validateOtelClientSpanBasics(traceRequests, spanName);
   const attrs = getSpanAttributesMap(span);
 
-  expect(attrs['statsig.activity_id']).toBeDefined();
-  expect(attrs['statsig.activity_id'].stringValue).toBe(expectedActivityID);
-
   expect(attrs['statsig.user_id']).toBeDefined();
   expect(attrs['statsig.user_id'].stringValue).toBe(expectedUserID);
 
@@ -255,7 +263,8 @@ async function validateActivityIDInTraceAndEvent({
   expect(events.length).toBeGreaterThan(0);
   const meta = events[0].metadata;
 
-  expect(meta['statsig.activity_id']).toBe(expectedActivityID);
   expect(meta['statsig.user_id']).toBe(expectedUserID);
   expect(meta['statsig.custom_ids']).toBe(JSON.stringify(expectedCustomIDs));
+  const parsedCustomIDs = JSON.parse(meta['statsig.custom_ids']);
+  expect(parsedCustomIDs[STATSIG_ATTR_ACTIVITY_ID]).toBe(expectedActivityID);
 }
