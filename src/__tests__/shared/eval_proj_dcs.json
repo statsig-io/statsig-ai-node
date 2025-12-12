@@ -3073,7 +3073,7 @@
         "prompts": [
           {
             "role": "system",
-            "content": ""
+            "content": "hallo {{input}}"
           }
         ],
         "name": "Version 1",

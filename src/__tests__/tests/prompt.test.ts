@@ -78,6 +78,9 @@ describe('Prompt Serving', () => {
     expect(liveVersion.getEvalModel()).toBe('gpt-4o-mini');
     expect(liveVersion.getType()).toBe('Live');
     expect(liveVersion.getPromptName()).toBe('test_prompt');
+    expect(liveVersion.getPromptMessages({ input: 'test' })).toEqual([
+      { role: 'system', content: 'hallo test' },
+    ]);
   });
 
   it('should get the correct candidate prompt versions', async () => {
@@ -96,9 +99,15 @@ describe('Prompt Serving', () => {
 
     expect(candidateVersions[0].getID()).toBe('7jszgFEAi1KRA2Tot6qikg');
     expect(candidateVersions[0].getName()).toBe('Version 2');
+    expect(candidateVersions[0].getPromptMessages({ input: 'test' })).toEqual([
+      { role: 'system', content: 'hoiiiiii test' },
+    ]);
 
     expect(candidateVersions[1].getID()).toBe('7CKLvQvOwjj2vjx12gFO0Z');
     expect(candidateVersions[1].getName()).toBe('Version 3');
+    expect(candidateVersions[1].getPromptMessages({ input: 'test' })).toEqual([
+      { role: 'system', content: 'another version wee test' },
+    ]);
   });
 
   it('should not use fallback values when prompt version properties are defined', async () => {

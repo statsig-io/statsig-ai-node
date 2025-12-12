@@ -1,4 +1,5 @@
 import { DynamicConfig } from '@statsig/statsig-node-core';
+import Mustache from 'mustache';
 
 export type PromptParams = {
   [key: string]: any;
@@ -113,29 +114,16 @@ export class PromptVersion {
       { role: 'system', content: '' },
     ]);
 
-    const regex = /{{\s*([^}]+)\s*}}/g; // matches {{ anything.inside.braces }}
+    const originalEscape = Mustache.escape;
+    Mustache.escape = (text: string) => text;
 
-    // Resolve nested object paths (supports array indices)
-    return prompts.map((p: { role: string; content: string }) => ({
-      role: p.role,
-      content: p.content.replace(regex, (_, path) => {
-        const value = resolvePath(params, path.trim());
-        return value !== undefined ? String(value) : `{{${path}}}`;
-      }),
-    }));
-  }
-}
-
-function resolvePath(obj: any, path: string): any {
-  const parts = path
-    // convert [0] to .0 so we can split cleanly
-    .replace(/\[(\w+)\]/g, '.$1')
-    .split('.');
-
-  return parts.reduce((acc, key) => {
-    if (acc && key in acc) {
-      return acc[key];
+    try {
+      return prompts.map((p: { role: string; content: string }) => ({
+        role: p.role,
+        content: Mustache.render(p.content, params),
+      }));
+    } finally {
+      Mustache.escape = originalEscape;
     }
-    return undefined;
-  }, obj);
+  }
 }
