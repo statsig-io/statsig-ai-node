@@ -222,7 +222,11 @@ describe('wrap-call', () => {
       const attributes = span.attributes as Record<string, unknown>;
 
       expect(attributes[STATSIG_ATTR_USER_ID]).toBeUndefined();
-      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBeUndefined();
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBeDefined();
+
+      expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
+        JSON.stringify({ [STATSIG_ATTR_ACTIVITY_ID]: activityID }),
+      );
     });
 
     it('sets statsig context with only user when activityID is not provided', async () => {

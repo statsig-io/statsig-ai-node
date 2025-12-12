@@ -144,15 +144,16 @@ describe('Statsig Context with Activity ID', () => {
 
       expect(attrs['statsig.activity_id']).toBeUndefined();
       expect(attrs['statsig.user_id']).toBeUndefined();
-      expect(attrs['statsig.custom_ids']).toBeUndefined();
-
+      expect(attrs['statsig.custom_ids']).toBeDefined();
+      const customIDs = JSON.parse(attrs['statsig.custom_ids'].stringValue);
+      expect(customIDs[STATSIG_ATTR_ACTIVITY_ID]).toBe(activityID);
       const events = scrapi.getLoggedEvents('statsig::gen_ai');
       expect(events.length).toBeGreaterThan(0);
       const meta = events[0].metadata;
 
       expect(meta['statsig.activity_id']).toBeUndefined();
       expect(meta['statsig.user_id']).toBeUndefined();
-      expect(meta['statsig.custom_ids']).toBeUndefined();
+
       expect(events[0].user.customIDs).toMatchObject({
         [STATSIG_ATTR_ACTIVITY_ID]: activityID,
       });

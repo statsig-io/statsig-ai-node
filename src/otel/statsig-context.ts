@@ -59,15 +59,15 @@ export function getStatsigSpanAttrsFromContext(
 
   if (maybeContext.user) {
     attrs[STATSIG_ATTR_USER_ID] = maybeContext.user.userID ?? 'null';
+  }
 
-    const customIDs = { ...(maybeContext.user.customIDs ?? {}) };
-    if (maybeContext.activityID) {
-      customIDs[STATSIG_ATTR_ACTIVITY_ID] = maybeContext.activityID;
-    }
+  const customIDs = { ...(maybeContext.user?.customIDs ?? {}) };
+  if (maybeContext.activityID) {
+    customIDs[STATSIG_ATTR_ACTIVITY_ID] = maybeContext.activityID;
+  }
 
-    if (Object.keys(customIDs).length > 0) {
-      attrs[STATSIG_ATTR_CUSTOM_IDS] = JSON.stringify(customIDs);
-    }
+  if (Object.keys(customIDs).length > 0) {
+    attrs[STATSIG_ATTR_CUSTOM_IDS] = JSON.stringify(customIDs);
   }
 
   return Object.keys(attrs).length > 0 ? attrs : null;
