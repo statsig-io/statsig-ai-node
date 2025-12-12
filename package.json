@@ -1,6 +1,6 @@
 {
   "name": "@statsig/statsig-ai",
-  "version": "0.0.1-beta.22",
+  "version": "0.0.1-beta.25",
   "main": "./dist/index.js",
   "files": [
     "dist/",
@@ -51,11 +51,14 @@
     "@opentelemetry/sdk-trace-base": "^2.2.0",
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.36.0",
-    "@statsig/statsig-node-core": "*",
     "node-fetch": "^3.3.2",
     "zod": "^3.25.76"
   },
+  "peerDependencies": {
+    "@statsig/statsig-node-core": ">=0.0.0-0"
+  },
   "devDependencies": {
+    "@statsig/statsig-node-core": ">=0.0.0-0",
     "@types/compression": "^1.7.5",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
