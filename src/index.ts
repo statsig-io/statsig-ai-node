@@ -12,6 +12,15 @@ export { StatsigSpanProcessor } from './otel/processor';
 export { StatsigOTLPTraceExporter } from './otel/exporter';
 export { withStatsigUserContext } from './otel/user-context';
 export { withStatsigContext } from './otel/statsig-context';
-export { Eval, EvalResultRecord } from './evals/Eval';
+export { Eval, EvalResultRecord, EvalResult } from './evals/Eval';
+export {
+  Score,
+  ScoreWithMetadata,
+  ScorerFunctionArgs,
+  ScorerFunction,
+  EvalScorers,
+} from './evals/EvalScorer';
+export { EvalDataRecord, EvalData } from './evals/EvalData';
+export { EvalHooks } from './evals/EvalHooks';
 export { StatsigAI } from './StatsigAI';
 export { wrap } from './wrappers/wrap-call';
