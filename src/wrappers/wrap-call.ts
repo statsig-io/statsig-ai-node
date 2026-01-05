@@ -5,6 +5,7 @@ import {
   SpanStatusCode,
 } from '@opentelemetry/api';
 import { StatsigUser } from '@statsig/statsig-node-core';
+import { SpanTelemetry } from './span-telemetry';
 import {
   STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   STATSIG_ATTR_SPAN_LLM_ROOT,
@@ -15,10 +16,14 @@ import {
 } from '../otel/conventions';
 import { OtelSingleton } from '../otel/singleton';
 import {
+  getStatsigSpanAttrsFromContext,
   setStatsigContextToContext,
   setStatsigSpanAttrsFromContext,
 } from '../otel/statsig-context';
-import { setUserSpanAttrsFromContext } from '../otel/user-context';
+import {
+  getUserSpanAttrsFromContext,
+  setUserSpanAttrsFromContext,
+} from '../otel/user-context';
 
 type ToolInput = {
   type: 'tool';
@@ -61,42 +66,48 @@ export function wrap<TFun extends (...args: any[]) => any>(
     }
 
     const result = tracer.startActiveSpan(opName, {}, ctx, (span) => {
+      const telemetry = new SpanTelemetry(span, opName);
       try {
-        span.setAttributes(input.attributes || {});
-        span.setAttribute(STATSIG_ATTR_SPAN_TYPE, StatsigSpanType.gen_ai);
+        telemetry.setAttributes(input.attributes || {});
+        telemetry.setAttributes({
+          [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
+        });
 
-        setUserSpanAttrsFromContext(context.active(), span);
-        setStatsigSpanAttrsFromContext(context.active(), span);
-        assignAttributesForInputType(input, span);
+        const contextAttributes = {
+          ...getUserSpanAttrsFromContext(context.active()),
+          ...getStatsigSpanAttrsFromContext(context.active()),
+        };
+        telemetry.setAttributes(contextAttributes);
+        telemetry.setAttributes(getAttributesForInputType(input));
 
-        span.setStatus({ code: SpanStatusCode.OK });
+        telemetry.setStatus({ code: SpanStatusCode.OK });
         const result = fn(...args);
         if (isThenable(result)) {
           return result
             .then((res) => {
-              span.end();
-              span.setStatus({ code: SpanStatusCode.OK });
+              telemetry.end();
+              telemetry.setStatus({ code: SpanStatusCode.OK });
               return res;
             })
             .catch((e: unknown) => {
-              span.recordException(e as Error);
-              span.setStatus({
+              telemetry.recordException(e as Error);
+              telemetry.setStatus({
                 code: SpanStatusCode.ERROR,
                 message: (e as Error).message,
               });
-              span.end();
+              telemetry.end();
               throw e;
             }) as ReturnType<TFun>;
         }
-        span.end();
+        telemetry.end();
         return result;
       } catch (e) {
-        span.recordException(e as Error);
-        span.setStatus({
+        telemetry.recordException(e as Error);
+        telemetry.setStatus({
           code: SpanStatusCode.ERROR,
           message: (e as Error).message,
         });
-        span.end();
+        telemetry.end();
         throw e;
       }
     });
@@ -128,31 +139,28 @@ export function startWorkflow<R>(
   )();
 }
 
-function assignAttributesForInputType(input: WrapCallInput, span: Span) {
+function getAttributesForInputType(
+  input: WrapCallInput,
+): Record<string, AttributeValue> {
+  const attributes: Record<string, AttributeValue> = {};
+
   if ('name' in input) {
-    span.setAttribute(
-      'statsig.' + NAME_PREFIX + input.type + '.name',
-      input.name,
-    );
+    attributes['statsig.' + NAME_PREFIX + input.type + '.name'] = input.name;
     if (input.type === 'tool' && input.toolType) {
-      span.setAttribute(NAME_PREFIX + 'tool.type', input.toolType);
+      attributes[NAME_PREFIX + 'tool.type'] = input.toolType;
     }
   }
 
   switch (input.type) {
     case 'tool':
-      span.setAttribute(
-        STATSIG_ATTR_GEN_AI_SPAN_TYPE,
-        StatsigGenAISpanType.tool,
-      );
+      attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE] = StatsigGenAISpanType.tool;
       break;
     case 'workflow':
-      span.setAttribute(
-        STATSIG_ATTR_GEN_AI_SPAN_TYPE,
-        StatsigGenAISpanType.workflow,
-      );
+      attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE] = StatsigGenAISpanType.workflow;
       break;
   }
+
+  return attributes;
 }
 
 export interface Thenable<T = any> {

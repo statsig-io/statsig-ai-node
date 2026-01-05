@@ -6,7 +6,10 @@ import {
 } from '@opentelemetry/api';
 import { StatsigUser, type Statsig } from '@statsig/statsig-node-core';
 import { STATSIG_ATTR_ACTIVITY_ID } from '../otel/conventions';
-import { StatsigResourceAttributes } from '../otel/resources';
+import {
+  createResourceAttributes,
+  StatsigResourceAttributes,
+} from '../otel/resources';
 import { getStatsigContextFromContext } from '../otel/statsig-context';
 
 const GEN_AI_EVENT_NAME = 'statsig::gen_ai';
@@ -22,8 +25,8 @@ export class SpanTelemetry {
   constructor(
     public readonly span: Span,
     private readonly spanName: string,
-    private readonly maxJSONChars: number,
-    private readonly otelResourceAttributes: StatsigResourceAttributes,
+    private readonly maxJSONChars: number = 40_000,
+    private readonly otelResourceAttributes: StatsigResourceAttributes = createResourceAttributes(),
   ) {
     this.metadata['span.name'] = spanName;
     const ctx = span.spanContext();

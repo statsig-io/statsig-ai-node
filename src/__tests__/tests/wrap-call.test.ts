@@ -5,8 +5,10 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { StatsigUser } from '@statsig/statsig-node-core';
+import { StatsigOptions, StatsigUser } from '@statsig/statsig-node-core';
+import fs from 'fs';
 
+import { StatsigAI } from '../..';
 import {
   STATSIG_ATTR_ACTIVITY_ID,
   STATSIG_ATTR_CUSTOM_IDS,
@@ -20,13 +22,18 @@ import {
 } from '../../otel/conventions';
 import { OtelSingleton } from '../../otel/singleton';
 import { startWorkflow, wrap } from '../../wrappers/wrap-call';
+import { MockScrapi } from '../shared/MockScrapi';
+import { getDCSFilePath } from '../shared/utils';
 
 describe('wrap-call', () => {
   let contextManager: AsyncLocalStorageContextManager;
   let exporter: InMemorySpanExporter;
   let provider: BasicTracerProvider;
+  let scrapi: MockScrapi;
+  let options: StatsigOptions;
+  const sdkKey = 'secret-test-key';
 
-  beforeAll(() => {
+  beforeAll(async () => {
     contextManager = new AsyncLocalStorageContextManager();
     contextManager.enable();
     try {
@@ -34,20 +41,43 @@ describe('wrap-call', () => {
     } catch (err) {
       // ignore if already set
     }
+
+    scrapi = await MockScrapi.create();
+    const dcs = fs.readFileSync(getDCSFilePath('eval_proj_dcs.json'), 'utf8');
+    scrapi.mock('/v2/download_config_specs', dcs, {
+      status: 200,
+      method: 'GET',
+    });
+    scrapi.mock('/v1/log_event', '{"success": true}', {
+      status: 202,
+      method: 'POST',
+    });
+    options = {
+      specsUrl: scrapi.getUrlForPath('/v2/download_config_specs'),
+      logEventUrl: scrapi.getUrlForPath('/v1/log_event'),
+    };
   });
 
   afterAll(() => {
     otelContext.disable();
     contextManager.disable();
+    scrapi.close();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    scrapi.clearRequests();
     exporter = new InMemorySpanExporter();
     provider = new BasicTracerProvider({
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     });
     OtelSingleton.__reset();
     OtelSingleton.instantiate({ tracerProvider: provider });
+
+    StatsigAI.newShared({
+      sdkKey,
+      statsigOptions: options,
+    });
+    await StatsigAI.shared().initialize();
   });
 
   afterEach(async () => {
@@ -55,6 +85,11 @@ describe('wrap-call', () => {
     await provider.shutdown();
     exporter.reset();
     OtelSingleton.__reset();
+
+    if (StatsigAI.hasShared()) {
+      await StatsigAI.shared().shutdown();
+      StatsigAI.removeSharedInstance();
+    }
   });
 
   it('records tool metadata and user attributes for synchronous functions', async () => {
@@ -96,6 +131,17 @@ describe('wrap-call', () => {
     expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
       JSON.stringify({ team: 'infra' }),
     );
+
+    await StatsigAI.shared().flushEvents();
+    const genAIEvents = scrapi.getLoggedEvents('statsig::gen_ai');
+    expect(genAIEvents.length).toBeGreaterThanOrEqual(1);
+
+    const event = genAIEvents[0];
+    expect(event.eventName).toBe('statsig::gen_ai');
+    expect(event.value).toBe('execute_tool');
+    expect(event.metadata['statsig.gen_ai.tool.name']).toBe('search');
+    expect(event.metadata['gen_ai.tool.type']).toBe('retrieval');
+    expect(event.metadata['custom.attr']).toBe('provided');
   });
 
   it('marks spans as errors when wrapped async functions reject', async () => {
@@ -129,6 +175,16 @@ describe('wrap-call', () => {
       (event) => event.name === 'exception',
     );
     expect(exceptionEvent).toBeDefined();
+
+    await StatsigAI.shared().flushEvents();
+    const genAIEvents = scrapi.getLoggedEvents('statsig::gen_ai');
+    expect(genAIEvents.length).toBeGreaterThanOrEqual(1);
+
+    const event = genAIEvents[0];
+    expect(event.eventName).toBe('statsig::gen_ai');
+    expect(event.value).toBe('invoke_workflow');
+    expect(event.metadata['statsig.gen_ai.workflow.name']).toBe('embedding');
+    expect(event.metadata['span.status_code']).toBe('ERROR');
   });
 
   it('startWorkflow adds llm root attribute and forwards custom attributes', async () => {
@@ -157,6 +213,18 @@ describe('wrap-call', () => {
     expect(attributes[STATSIG_ATTR_GEN_AI_SPAN_TYPE]).toBe(
       StatsigGenAISpanType.workflow,
     );
+
+    await StatsigAI.shared().flushEvents();
+    const genAIEvents = scrapi.getLoggedEvents('statsig::gen_ai');
+    expect(genAIEvents.length).toBeGreaterThanOrEqual(1);
+
+    const event = genAIEvents[0];
+    expect(event.eventName).toBe('statsig::gen_ai');
+    expect(event.value).toBe('invoke_workflow');
+    expect(event.metadata['statsig.gen_ai.workflow.name']).toBe(
+      'outer-workflow',
+    );
+    expect(event.metadata['env.stage']).toBe('staging');
   });
 
   describe('Statsig context propagation', () => {
