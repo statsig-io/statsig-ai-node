@@ -1,14 +1,15 @@
 import {
-  StatsigAIInstance,
   StatsigCreateConfig,
   StatsigAttachConfig,
   StatsigSourceConfig,
+  StatsigAIInstance,
 } from './StatsigAIInstance';
+import { RC, StatsigSelector, STD } from './wrappers/statsig';
 
 export class StatsigAI extends StatsigAIInstance {
-  private static _sharedAIStatsigInstance: StatsigAI | null = null;
+  public static _sharedAIStatsigInstance: StatsigAIInstance<StatsigSelector> | null;
 
-  public static shared(): StatsigAI {
+  public static shared(): StatsigAIInstance<StatsigSelector> {
     if (!StatsigAI.hasShared()) {
       console.warn(
         '[Statsig] No shared instance has been created yet. Call newShared() before using it. Returning an invalid instance',
@@ -19,35 +20,44 @@ export class StatsigAI extends StatsigAIInstance {
   }
 
   public static hasShared(): boolean {
-    return StatsigAI._sharedAIStatsigInstance !== null;
+    return StatsigAI._sharedAIStatsigInstance != null;
   }
 
-  public static newShared(statsigInitConfig: StatsigCreateConfig): StatsigAI;
+  public static newShared(
+    statsigInitConfig: StatsigCreateConfig,
+  ): StatsigAIInstance<STD>;
 
   public static newShared(
-    statsigInstanceConfig: StatsigAttachConfig,
-  ): StatsigAI;
+    statsigInstanceConfig: StatsigAttachConfig<STD>,
+  ): StatsigAIInstance<STD>;
 
-  public static newShared(statsigSource: StatsigSourceConfig): StatsigAI {
+  public static newShared(
+    statsigInstanceConfig: StatsigAttachConfig<RC>,
+  ): StatsigAIInstance<RC>;
+
+  public static newShared<T extends StatsigSelector>(
+    statsigSource: StatsigSourceConfig<T>,
+  ): StatsigAIInstance<T> {
     if (StatsigAI.hasShared()) {
       console.warn(
         '[Statsig] Shared instance has been created, call removeSharedInstance() if you want to create another one. ' +
           'Returning an invalid instance',
       );
-      return StatsigAI._createErrorStatsigAIInstance();
+      return StatsigAI._createErrorStatsigAIInstance() as StatsigAIInstance<T>;
     }
 
-    StatsigAI._sharedAIStatsigInstance = new StatsigAI(statsigSource);
+    const newInstance = new StatsigAIInstance<T>(statsigSource);
+    StatsigAI._sharedAIStatsigInstance = newInstance;
 
-    return StatsigAI._sharedAIStatsigInstance;
+    return newInstance;
   }
 
   public static removeSharedInstance() {
     StatsigAI._sharedAIStatsigInstance = null;
   }
 
-  private static _createErrorStatsigAIInstance(): StatsigAI {
-    const dummyInstance = new StatsigAI({ sdkKey: 'INVALID-KEY' });
+  private static _createErrorStatsigAIInstance(): StatsigAIInstance {
+    const dummyInstance = new StatsigAIInstance({ sdkKey: 'INVALID-KEY' });
     dummyInstance.shutdown();
     return dummyInstance;
   }

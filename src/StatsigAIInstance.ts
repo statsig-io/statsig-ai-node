@@ -1,7 +1,6 @@
 import {
-  Statsig,
-  StatsigOptions,
-  StatsigUser,
+  Statsig as StatsigStd,
+  StatsigOptions as StatsigOptionsStd,
 } from '@statsig/statsig-node-core';
 
 import { AgentConfig, makeAgentConfig } from './agents/AgentConfig';
@@ -11,32 +10,33 @@ import { OtelSingleton } from './otel/singleton';
 import { makePrompt, Prompt } from './prompts/Prompt';
 import { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 import { PromptVersion } from './prompts/PromptVersion';
+import Statsig, { StatsigSelector, STD } from './wrappers/statsig';
 
-export interface StatsigCreateConfig {
+export type StatsigCreateConfig = {
   sdkKey: string;
-  statsigOptions?: StatsigOptions;
-  statsig?: never;
-}
+  statsigOptions?: StatsigOptionsStd;
+};
 
-export interface StatsigAttachConfig {
-  statsig: Statsig;
-  statsigOptions?: never;
-}
+export type StatsigAttachConfig<T extends StatsigSelector> = {
+  statsig: T['statsig'];
+};
 
-export type StatsigSourceConfig = StatsigCreateConfig | StatsigAttachConfig;
+export type StatsigSourceConfig<T extends StatsigSelector> =
+  | StatsigCreateConfig
+  | StatsigAttachConfig<T>;
 
-export class StatsigAIInstance {
-  private _statsig: Statsig;
+export class StatsigAIInstance<T extends StatsigSelector = STD> {
+  private _statsig: T['statsig'];
   private _ownsStatsigInstance: boolean = false;
 
-  constructor(statsigSource: StatsigSourceConfig) {
-    if ('statsig' in statsigSource && statsigSource.statsig) {
+  constructor(statsigSource: StatsigSourceConfig<T>) {
+    if ('statsig' in statsigSource) {
       const { statsig } = statsigSource;
       this._statsig = statsig;
       this._ownsStatsigInstance = false;
     } else {
       const { sdkKey, statsigOptions } = statsigSource;
-      this._statsig = new Statsig(sdkKey, statsigOptions);
+      this._statsig = new StatsigStd(sdkKey, statsigOptions);
       this._ownsStatsigInstance = true;
     }
   }
@@ -61,12 +61,12 @@ export class StatsigAIInstance {
     await this.flushEvents();
   }
 
-  getStatsig(): Statsig {
+  getStatsig(): T['statsig'] {
     return this._statsig;
   }
 
   getPrompt(
-    user: StatsigUser,
+    user: T['user'],
     promptName: string,
     _options?: PromptEvaluationOptions,
   ): Prompt {
@@ -76,16 +76,19 @@ export class StatsigAIInstance {
     const baseParamStoreName = `prompt:${promptName}`;
     let currentParamStoreName = baseParamStoreName;
 
-    let nextParamStoreName = this._statsig
-      .getParameterStore(user, currentParamStoreName)
-      .getValue('prompt_targeting_rules', '');
+    let nextParamStoreName = Statsig.getParameterStore(
+      this._statsig,
+      user,
+      currentParamStoreName,
+    ).getValue('prompt_targeting_rules', '');
 
     while (
       nextParamStoreName !== '' &&
       nextParamStoreName !== currentParamStoreName &&
       depth < MAX_DEPTH
     ) {
-      const nextParamStore = this._statsig.getParameterStore(
+      const nextParamStore = Statsig.getParameterStore(
+        this._statsig,
         user,
         nextParamStoreName,
       );
@@ -116,7 +119,8 @@ export class StatsigAIInstance {
       );
     }
 
-    const finalParamStore = this._statsig.getParameterStore(
+    const finalParamStore = Statsig.getParameterStore(
+      this._statsig,
       user,
       currentParamStoreName,
     );
@@ -126,8 +130,9 @@ export class StatsigAIInstance {
     return makePrompt(this._statsig, currentPromptName, finalParamStore, user);
   }
 
-  getAgentConfig(user: StatsigUser, agentConfigName: string): AgentConfig {
-    const agentParameterStore = this._statsig.getParameterStore(
+  getAgentConfig(user: T['user'], agentConfigName: string): AgentConfig {
+    const agentParameterStore = Statsig.getParameterStore(
+      this._statsig,
       user,
       `agent:${agentConfigName}`,
     );
@@ -141,7 +146,7 @@ export class StatsigAIInstance {
   }
 
   logEvalGrade(
-    user: StatsigUser,
+    user: T['user'],
     promptVersion: PromptVersion,
     score: number,
     graderName: string,
@@ -162,7 +167,8 @@ export class StatsigAIInstance {
       };
     }
 
-    this._statsig.logEvent(
+    Statsig.logEvent(
+      this._statsig,
       user,
       'statsig::eval_result',
       promptVersion.getPromptName(),

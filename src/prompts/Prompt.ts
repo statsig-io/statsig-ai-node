@@ -1,25 +1,25 @@
-import { ParameterStore, StatsigUser } from '@statsig/statsig-node-core';
+import { ParameterStore } from '@statsig/statsig-node-core';
 
 import { PromptVersion } from './PromptVersion';
-import { Statsig } from '@statsig/statsig-node-core';
 import { context } from '@opentelemetry/api';
 import {
   STATSIG_CTX_KEY_ACTIVE_PROMPT,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
 } from '../otel/conventions';
 import { setUserToContext } from '../otel/user-context';
+import Statsig, { StatsigSelector } from '../wrappers/statsig';
 
-export function makePrompt(
-  statsig: Statsig,
+export function makePrompt<T extends StatsigSelector>(
+  statsig: T['statsig'],
   name: string,
   paramStore: ParameterStore,
-  user: StatsigUser,
+  user: T['user'],
 ): Prompt {
   const liveConfigId = paramStore.getValue('live', '');
   const candidateConfigIds = paramStore.getValue('candidates', []);
-  const liveConfig = statsig.getDynamicConfig(user, liveConfigId);
+  const liveConfig = Statsig.getDynamicConfig(statsig, user, liveConfigId);
   const candidateConfigs = candidateConfigIds.map((id) =>
-    statsig.getDynamicConfig(user, id),
+    Statsig.getDynamicConfig(statsig, user, id),
   );
 
   return new Prompt(
@@ -33,10 +33,10 @@ export class Prompt {
   public readonly name: string;
   private _liveConfig: PromptVersion;
   private _candidateConfigs: PromptVersion[];
-  private _user: StatsigUser;
+  private _user: StatsigSelector['user'];
 
   constructor(
-    user: StatsigUser,
+    user: StatsigSelector['user'],
     name: string,
     liveConfig: PromptVersion,
     candidateConfigs: PromptVersion[],

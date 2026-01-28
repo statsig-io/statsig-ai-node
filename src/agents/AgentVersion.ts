@@ -1,11 +1,14 @@
-import { DynamicConfig, StatsigUser } from '@statsig/statsig-node-core';
-
+import { DynamicConfig } from '@statsig/statsig-node-core';
+import { DynamicConfig as DynamicConfigRC } from '@statsig/statsig-node-core-rc';
 import { PromptVersion } from '../prompts/PromptVersion';
 
 export class AgentVersion {
   private _rootPrompt: PromptVersion;
 
-  constructor(rootConfig: DynamicConfig, isLiveForUser: boolean) {
+  constructor(
+    rootConfig: DynamicConfig | DynamicConfigRC,
+    isLiveForUser: boolean,
+  ) {
     this._rootPrompt = new PromptVersion(rootConfig, isLiveForUser);
   }
 

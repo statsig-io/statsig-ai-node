@@ -7,6 +7,7 @@ import {
 import { StatsigAI } from '../..';
 import fs from 'fs';
 import { getDCSFilePath } from '../shared/utils';
+import { StatsigAIInstance } from '../../StatsigAIInstance';
 
 describe('StatsigAI', () => {
   let statsigAI: StatsigAI;
@@ -52,7 +53,7 @@ describe('StatsigAI', () => {
       });
 
       expect(sharedInstance).toBeDefined();
-      expect(sharedInstance).toBeInstanceOf(StatsigAI);
+      expect(sharedInstance).toBeInstanceOf(StatsigAIInstance);
       expect(StatsigAI.hasShared()).toBe(true);
     });
 

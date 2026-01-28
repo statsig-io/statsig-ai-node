@@ -13,6 +13,7 @@ specifiers:
   '@opentelemetry/sdk-trace-node': ^2.2.0
   '@opentelemetry/semantic-conventions': ^1.36.0
   '@statsig/statsig-node-core': '>=0.0.0-0'
+  '@statsig/statsig-node-core-rc': npm:@statsig/statsig-node-core@rc
   '@types/compression': ^1.7.5
   '@types/express': ^5.0.0
   '@types/jest': ^29.5.14
@@ -48,6 +49,7 @@ dependencies:
 
 devDependencies:
   '@statsig/statsig-node-core': 0.12.1
+  '@statsig/statsig-node-core-rc': /@statsig/statsig-node-core/0.14.2-rc.2601062017
   '@types/compression': 1.8.1
   '@types/express': 5.0.4
   '@types/jest': 29.5.14
@@ -2021,8 +2023,26 @@ packages:
     dev: true
     optional: true
 
+  /@statsig/statsig-node-core-darwin-arm64/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-txq28UxbNa0Lq5jWypqbNuo+cM+4LAXhj3fl76557R3XuAfF3Qz6vIgRC0BV2yGz13pZNxTIMRMI0JOCUTR26A==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /@statsig/statsig-node-core-darwin-x64/0.12.1:
     resolution: {integrity: sha512-yR5iQTVSaJARcZHsu8CghPsip05FhJeGcJwBZ9ZXIWahxZGSGVRN9PwL3h0BEQQiDND0UeBnk2IuipFMS5jBtA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+    requiresBuild: true
+    dev: true
+    optional: true
+
+  /@statsig/statsig-node-core-darwin-x64/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-6yNQdGF/xDbOkaJpE5G6jjef1TatsxhhSoW7KlL6VsxXQWz7rPUBhUdBMslNQAiMqMcvs73YKvmm8fNaZnEuHw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -2039,8 +2059,26 @@ packages:
     dev: true
     optional: true
 
+  /@statsig/statsig-node-core-linux-arm64-gnu/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-zLih0JCmLwml93/JMAMp4UgMtSbSRVkjnw9hThKwIHh25xQmqWOFssxIaRz5zng6ECgncgZ10qaf2hshE70v0w==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /@statsig/statsig-node-core-linux-arm64-musl/0.12.1:
     resolution: {integrity: sha512-tANemXuSZMwMicot3MHTxb6Hhi9YFOotd5eHVjENJnOVKcStewueaAGr0frFYpPaLQM4+e8Ule158lJ0Og7Llg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: true
+    optional: true
+
+  /@statsig/statsig-node-core-linux-arm64-musl/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-K5xBPAFEoIHQnl7Xe6AXQvkrd6SgEwuTVxR84YZD5P2nsTmP2Djqme5AYhYDj//Y82l7hkVsI/pDPKDLRrFqLw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -2057,8 +2095,26 @@ packages:
     dev: true
     optional: true
 
+  /@statsig/statsig-node-core-linux-x64-gnu/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-SclK3RSgkOZgygukYR+7aN5d2+D7cKtHjPvJvKxdJ2CqVZ17LTbgTpKYAS895MwGgki3mnbjCoD4Z/qXI0Sh4w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /@statsig/statsig-node-core-linux-x64-musl/0.12.1:
     resolution: {integrity: sha512-4oJTtvSmouqxoq8SkErJcxF6aHRNWm8B8I+gTVeSeO2bqW94gQeJ7djjyoRf6gL2ztC3BcCe9EhZZpAW3ANw1A==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: true
+    optional: true
+
+  /@statsig/statsig-node-core-linux-x64-musl/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-+iP6vZ/RAkdXpXUTqaogvITHU689J50f69+u+gbckc2lmSpk8NhHrSHohOk/OvkWWqOKvf1KnMAblUgcokgdZg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -2084,8 +2140,26 @@ packages:
     dev: true
     optional: true
 
+  /@statsig/statsig-node-core-win32-ia32-msvc/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-N3+nGxhSu7Kg6UAkp5OsgCjP+J9FsHz4veLaE/zFkvWuZia62AgM+dwXkOL4Gbo1JHh1I/JoeFGkxpw82O1SsA==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /@statsig/statsig-node-core-win32-x64-msvc/0.12.1:
     resolution: {integrity: sha512-B9KvVpf4owsi6aZRl9EaoA7nIUuDmeIDahR36SG9Uno8eAvuqUuVM9hMz0WCzgiAKx+Vul0aiHlKuDPVeGtO8Q==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+    requiresBuild: true
+    dev: true
+    optional: true
+
+  /@statsig/statsig-node-core-win32-x64-msvc/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-DoyKTeI+wV9WOK4qEFdu45MRc6MTywgNxP0Glhahr08SSsaQEkOSR55F0Gyo8i/fjumHvpz55ykgg4N+H4c3/w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -2110,6 +2184,27 @@ packages:
       '@statsig/statsig-node-core-win32-arm64-msvc': 0.12.1
       '@statsig/statsig-node-core-win32-ia32-msvc': 0.12.1
       '@statsig/statsig-node-core-win32-x64-msvc': 0.12.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: true
+
+  /@statsig/statsig-node-core/0.14.2-rc.2601062017:
+    resolution: {integrity: sha512-s8W/DM1rMch8CTdttyJ3xnIlQr4esgZighmZagYZdlTAwuZBwOjZCGXvEW5CJGtQbpsvpxDNrtU6Ae2V8K47og==}
+    engines: {node: '>= 6.14.2 < 7 || >= 8.11.2 < 9 || >= 9.11.0 < 10 || >= 10.0.0'}
+    dependencies:
+      '@octokit/core': 6.1.6
+      https-proxy-agent: 7.0.6
+      node-fetch: 2.7.0
+    optionalDependencies:
+      '@statsig/statsig-node-core-darwin-arm64': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-darwin-x64': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-linux-arm64-gnu': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-linux-arm64-musl': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-linux-x64-gnu': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-linux-x64-musl': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-win32-ia32-msvc': 0.14.2-rc.2601062017
+      '@statsig/statsig-node-core-win32-x64-msvc': 0.14.2-rc.2601062017
     transitivePeerDependencies:
       - encoding
       - supports-color

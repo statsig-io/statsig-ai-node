@@ -1,30 +1,31 @@
-import {
-  DynamicConfig,
-  ParameterStore,
-  StatsigUser,
-} from '@statsig/statsig-node-core';
-
 import { AgentVersion } from './AgentVersion';
-import { Statsig } from '@statsig/statsig-node-core';
 
-export function makeAgentConfig(
-  statsig: Statsig,
-  user: StatsigUser,
+import Statsig, { StatsigSelector } from '../wrappers/statsig';
+
+export function makeAgentConfig<T extends StatsigSelector>(
+  statsig: T['statsig'],
+  user: T['user'],
   name: string,
-  paramStore: ParameterStore,
+  paramStore: T['paramStore'],
 ): AgentConfig {
   const liveDAGConfigId = paramStore.getValue('live', '');
   const candidateDAGConfigIds = paramStore.getValue('candidates', []);
 
-  const liveDAGConfig = statsig.getDynamicConfig(user, liveDAGConfigId);
-  const liveRootConfig = statsig.getDynamicConfig(
+  const liveDAGConfig = Statsig.getDynamicConfig(
+    statsig,
+    user,
+    liveDAGConfigId,
+  );
+  const liveRootConfig = Statsig.getDynamicConfig(
+    statsig,
     user,
     liveDAGConfig.getValue('root', ''),
   );
 
   const candidateRootAgents = candidateDAGConfigIds.map((id) => {
-    const config = statsig.getDynamicConfig(user, id);
-    const rootConfig = statsig.getDynamicConfig(
+    const config = Statsig.getDynamicConfig(statsig, user, id);
+    const rootConfig = Statsig.getDynamicConfig(
+      statsig,
       user,
       config.getValue('root', ''),
     );

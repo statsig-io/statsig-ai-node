@@ -1,4 +1,5 @@
 import { DynamicConfig } from '@statsig/statsig-node-core';
+import { DynamicConfig as DynamicConfigRC } from '@statsig/statsig-node-core-rc';
 import Mustache from 'mustache';
 
 export type PromptParams = {
@@ -12,7 +13,7 @@ export type PromptMessage = {
 
 export class PromptVersion {
   public readonly name: string;
-  private _promptVariant: DynamicConfig;
+  private _promptVariant: DynamicConfig | DynamicConfigRC;
   private _id: string;
   private _temperature: number;
   private _maxTokens: number;
@@ -27,7 +28,10 @@ export class PromptVersion {
   private _aiConfigName: string;
   public readonly isLiveForUser: boolean;
 
-  constructor(promptVariant: DynamicConfig, isLiveForUser: boolean) {
+  constructor(
+    promptVariant: DynamicConfig | DynamicConfigRC,
+    isLiveForUser: boolean,
+  ) {
     this.name = promptVariant.getValue('name', '');
     this._type = promptVariant.getValue('type', '');
     this._aiConfigName = promptVariant.getValue('aiConfigName', '');

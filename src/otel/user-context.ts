@@ -1,17 +1,21 @@
 import { AttributeValue, context, Context, Span } from '@opentelemetry/api';
-import { StatsigUser } from '@statsig/statsig-node-core';
+
 import {
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_USER_ID,
   STATSIG_CTX_KEY_ACTIVE_USER,
 } from './conventions';
+import { StatsigSelector } from '../wrappers/statsig';
 
 export type UserContextItem = {
   userID: string;
   customIDs: Record<string, string>;
 };
 
-export function setUserToContext(ctx: Context, user: StatsigUser): Context {
+export function setUserToContext(
+  ctx: Context,
+  user: StatsigSelector['user'],
+): Context {
   const ids: UserContextItem = {
     userID: user.userID || 'unknown',
     customIDs: user.customIDs ?? {},
@@ -58,7 +62,7 @@ export function withStatsigUserContext<
   A extends unknown[],
   F extends (...args: A) => ReturnType<F>,
 >(
-  user: StatsigUser,
+  user: StatsigSelector['user'],
   fn: F,
   thisArg?: ThisParameterType<F>,
   ...args: A
