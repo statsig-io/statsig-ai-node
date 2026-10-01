@@ -195,8 +195,6 @@ export class StatsigOpenAIProxy {
       params as Record<string, any>,
     );
 
-    const maybeStream = callFn(params, options);
-
     if (params.stream) {
       const maybeStream = await callFn(params, options);
       if (isAsyncIterable(maybeStream)) {
