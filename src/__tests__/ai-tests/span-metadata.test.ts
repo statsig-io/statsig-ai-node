@@ -13,6 +13,7 @@ import {
   STATSIG_ATTR_CUSTOM_IDS,
   STATSIG_ATTR_LLM_PROMPT_NAME,
   STATSIG_ATTR_LLM_PROMPT_VERSION,
+  STATSIG_ATTR_LLM_PROMPT_VERSION_ID,
   STATSIG_ATTR_USER_ID,
 } from '../../otel/conventions';
 import { StatsigSpanProcessor } from '../../otel/processor';
@@ -62,6 +63,7 @@ describe('Span metadata propagation', () => {
 
     const promptVersion = {
       getName: jest.fn(() => 'Version 42'),
+      getID: jest.fn(() => 'version-42'),
     } as unknown as PromptVersion;
     const user = new StatsigUser({
       userID: 'trace-user',
@@ -93,6 +95,7 @@ describe('Span metadata propagation', () => {
 
     expect(attributes[STATSIG_ATTR_LLM_PROMPT_NAME]).toBe('trace_prompt');
     expect(attributes[STATSIG_ATTR_LLM_PROMPT_VERSION]).toBe('Version 42');
+    expect(attributes[STATSIG_ATTR_LLM_PROMPT_VERSION_ID]).toBe('version-42');
     expect(attributes[STATSIG_ATTR_USER_ID]).toBe('trace-user');
     expect(attributes[STATSIG_ATTR_CUSTOM_IDS]).toBe(
       JSON.stringify({ project: 'apollo' }),

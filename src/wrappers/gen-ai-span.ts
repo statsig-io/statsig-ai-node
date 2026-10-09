@@ -1,0 +1,189 @@
+import {
+  AttributeValue,
+  SpanKind,
+  SpanStatusCode,
+  Tracer,
+  context,
+  trace,
+} from '@opentelemetry/api';
+import {
+  STATSIG_ATTR_LLM_PROMPT_NAME,
+  STATSIG_ATTR_LLM_PROMPT_VERSION,
+  STATSIG_ATTR_LLM_PROMPT_VERSION_ID,
+  STATSIG_ATTR_SPAN_LLM_ROOT,
+  STATSIG_ATTR_SPAN_TYPE,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
+  STATSIG_SPAN_LLM_ROOT_VALUE,
+  StatsigSpanType,
+} from '../otel/conventions';
+import {
+  createResourceAttributes,
+  StatsigResourceAttributes,
+} from '../otel/resources';
+import { OtelSingleton } from '../otel/singleton';
+import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
+import { SpanTelemetry, TelemetryStream } from './span-telemetry';
+
+const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
+
+// Starts a client span for one model call, tagged with the active Statsig
+// prompt, prompt version and context so it can be graded and attributed.
+export function startGenAISpan(
+  tracer: Tracer,
+  spanName: string,
+  baseAttrs: Record<string, AttributeValue>,
+  customAttributes: Record<string, AttributeValue> | undefined,
+  maxJSONChars: number,
+): SpanTelemetry {
+  let ctx = context.active();
+  const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
+  const statsigAttrs: Record<string, AttributeValue> = {
+    [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
+  };
+  if (
+    typeof maybeRootSpan === 'undefined' ||
+    (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
+  ) {
+    ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
+    statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
+  }
+
+  const contextValues: [symbol, string][] = [
+    [STATSIG_CTX_KEY_ACTIVE_PROMPT, STATSIG_ATTR_LLM_PROMPT_NAME],
+    [STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION, STATSIG_ATTR_LLM_PROMPT_VERSION],
+    [
+      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
+      STATSIG_ATTR_LLM_PROMPT_VERSION_ID,
+    ],
+  ];
+  for (const [ctxKey, attr] of contextValues) {
+    const value = ctx.getValue(ctxKey);
+    if (value && typeof value === 'string') {
+      statsigAttrs[attr] = value;
+    }
+  }
+
+  const maybeStatsigContextAttrs = getStatsigSpanAttrsFromContext(ctx);
+  if (maybeStatsigContextAttrs) {
+    Object.assign(statsigAttrs, maybeStatsigContextAttrs);
+  }
+
+  const attributes: Record<string, AttributeValue | undefined> = {
+    ...(customAttributes ?? {}),
+    ...baseAttrs,
+    ...statsigAttrs,
+  };
+
+  const span = tracer.startSpan(
+    spanName,
+    {
+      kind: SpanKind.CLIENT,
+      attributes,
+    },
+    ctx,
+  );
+
+  let resources: StatsigResourceAttributes;
+  if (OtelSingleton.isInitialized()) {
+    resources = OtelSingleton.getInstance().getResources();
+  } else {
+    resources = createResourceAttributes();
+  }
+
+  const telemetry = new SpanTelemetry(span, spanName, maxJSONChars, resources);
+  telemetry.setAttributes(attributes);
+  return telemetry;
+}
+
+type GenAICallHandlers<Result> = {
+  onResult: (result: Result) => Record<string, AttributeValue | undefined>;
+  onStream?: (items: unknown[]) => Record<string, AttributeValue | undefined>;
+};
+
+// Runs a provider call inside its span. A streamed result is returned as a
+// stream that ends the span once the caller has consumed it. Promise helpers
+// such as Anthropic's withResponse() are passed through to the original call.
+export function traceGenAICall<Result>(
+  telemetry: SpanTelemetry,
+  call: () => Result | Promise<Result>,
+  handlers: GenAICallHandlers<Result>,
+): Promise<Result> {
+  let pending: Result | Promise<Result>;
+  try {
+    pending = context.with(
+      trace.setSpan(context.active(), telemetry.span),
+      call,
+    );
+  } catch (e) {
+    telemetry.fail(e);
+    telemetry.end();
+    throw e;
+  }
+
+  const traced = Promise.resolve(pending).then(
+    (result) => {
+      const { onStream } = handlers;
+      if (onStream && isAsyncIterable(result)) {
+        return wrapStream(result, telemetry, (items) =>
+          setAttributesSafely(telemetry, () => onStream(items)),
+        ) as Result;
+      }
+      telemetry.recordTimeToFirstToken();
+      telemetry.setStatus({ code: SpanStatusCode.OK });
+      setAttributesSafely(telemetry, () => handlers.onResult(result));
+      telemetry.end();
+      return result;
+    },
+    (e) => {
+      telemetry.fail(e);
+      telemetry.end();
+      throw e;
+    },
+  );
+
+  for (const helper of ['withResponse', 'asResponse']) {
+    const fn = (pending as Record<string, unknown> | undefined)?.[helper];
+    if (typeof fn === 'function') {
+      Object.assign(traced, { [helper]: fn.bind(pending) });
+    }
+  }
+  return traced;
+}
+
+export function setAttributesSafely(
+  telemetry: SpanTelemetry,
+  getAttributes: () => Record<string, AttributeValue | undefined>,
+): void {
+  try {
+    telemetry.setAttributes(getAttributes());
+  } catch (e) {
+    console.warn('[Statsig] Failed to record Gen AI response attributes.', e);
+  }
+}
+
+function isAsyncIterable(x: unknown): x is AsyncIterable<unknown> {
+  return (
+    x != null &&
+    typeof (x as Record<symbol, unknown>)[Symbol.asyncIterator] === 'function'
+  );
+}
+
+function wrapStream<T>(
+  stream: AsyncIterable<T>,
+  telemetry: SpanTelemetry,
+  onData: (items: T[]) => void,
+): AsyncIterable<T> {
+  return new Proxy(stream, {
+    get(target, prop, recv) {
+      if (prop === Symbol.asyncIterator) {
+        return () =>
+          new TelemetryStream(stream, telemetry, (_telemetry, items) =>
+            onData(items),
+          )[Symbol.asyncIterator]();
+      }
+      return Reflect.get(target, prop, recv);
+    },
+  });
+}

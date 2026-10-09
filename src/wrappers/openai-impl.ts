@@ -1,6 +1,5 @@
 import {
   AttributeValue,
-  SpanKind,
   SpanStatusCode,
   Tracer,
   context,
@@ -12,28 +11,12 @@ import {
   OpenAILike,
   StatsigOpenAIProxyConfig,
 } from './openai-configs';
-import {
-  STATSIG_ATTR_LLM_PROMPT_NAME,
-  STATSIG_ATTR_LLM_PROMPT_VERSION,
-  STATSIG_ATTR_SPAN_LLM_ROOT,
-  STATSIG_ATTR_SPAN_TYPE,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-  STATSIG_SPAN_LLM_ROOT_VALUE,
-  StatsigSpanType,
-} from '../otel/conventions';
-import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
 import { OtelSingleton } from '../otel/singleton';
 import {
   extractBaseAttributes,
   extractResponseAttributes,
 } from './attribute-helper';
-import {
-  createResourceAttributes,
-  StatsigResourceAttributes,
-} from '../otel/resources';
-
-const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
+import { startGenAISpan } from './gen-ai-span';
 const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
   'openai.chat.completions.create': 'chat',
   'openai.completions.create': 'text_completion',
@@ -335,74 +318,13 @@ export class StatsigOpenAIProxy {
     opName: string,
     params: Record<string, any>,
   ): SpanTelemetry {
-    let ctx = context.active();
-    const baseAttrs = extractOAIBaseAttributes(
-      opName,
-      params as Record<string, any>,
-      this._captureOptions,
-    );
-    const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
-    const statsigAttrs: Record<string, AttributeValue> = {
-      [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
-    };
-    if (
-      typeof maybeRootSpan === 'undefined' ||
-      (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
-    ) {
-      ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
-      statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
-    }
-
-    const maybeContextPrompt = ctx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT);
-    const maybeContextPromptVersion = ctx.getValue(
-      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-    );
-    if (maybeContextPrompt && typeof maybeContextPrompt === 'string') {
-      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_NAME] = maybeContextPrompt;
-    }
-    if (
-      maybeContextPromptVersion &&
-      typeof maybeContextPromptVersion === 'string'
-    ) {
-      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_VERSION] = maybeContextPromptVersion;
-    }
-
-    const maybeStatsigContextAttrs = getStatsigSpanAttrsFromContext(ctx);
-    if (maybeStatsigContextAttrs) {
-      Object.assign(statsigAttrs, maybeStatsigContextAttrs);
-    }
-
-    const attributes: Record<string, AttributeValue | undefined> = {
-      ...(this._customAttributes ?? {}),
-      ...(baseAttrs ?? {}),
-      ...statsigAttrs,
-    };
-
-    const span = this.tracer.startSpan(
+    return startGenAISpan(
+      this.tracer,
       spanName,
-      {
-        kind: SpanKind.CLIENT,
-        attributes,
-      },
-      ctx,
-    );
-
-    let resources: StatsigResourceAttributes;
-    if (OtelSingleton.isInitialized()) {
-      resources = OtelSingleton.getInstance().getResources();
-    } else {
-      resources = createResourceAttributes();
-    }
-
-    const telemetry = new SpanTelemetry(
-      span,
-      spanName,
+      extractOAIBaseAttributes(opName, params, this._captureOptions),
+      this._customAttributes,
       this._maxJSONChars,
-      resources,
     );
-
-    telemetry.setAttributes(attributes);
-    return telemetry;
   }
 }
 
