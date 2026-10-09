@@ -45,7 +45,7 @@ const anthropic = wrapAnthropic(new Anthropic()); // messages.create (incl. stre
 const gemini = wrapGemini(new GoogleGenAI({})); // models.generateContent / generateContentStream
 ```
 
-Messages are only recorded when you opt in with `captureOptions` (for example `{ captureOptions: { capture_all: true } }`). The Anthropic and Gemini wrappers record `gen_ai.input.messages`, `gen_ai.output.messages` and `gen_ai.system_instructions` in the [OpenTelemetry GenAI message format](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) (`role` + `parts` such as `text`, `tool_call` and `tool_call_response`).
+Messages are only recorded when you opt in with `captureOptions` (for example `{ captureOptions: { capture_all: true } }`). All wrappers record `gen_ai.input.messages`, `gen_ai.output.messages` and `gen_ai.system_instructions` in the [OpenTelemetry GenAI message format](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) (`role` + `parts` such as `text`, `tool_call` and `tool_call_response`).
 
 ## Community
 

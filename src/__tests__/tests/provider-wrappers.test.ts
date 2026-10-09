@@ -15,6 +15,7 @@ import { Prompt } from '../../prompts/Prompt';
 import { PromptVersion } from '../../prompts/PromptVersion';
 import { wrapAnthropic } from '../../wrappers/anthropic';
 import { wrapGemini } from '../../wrappers/gemini';
+import { wrapOpenAI } from '../../wrappers/openai';
 
 async function* yieldAll<T>(items: T[]): AsyncGenerator<T> {
   for (const item of items) {
@@ -468,6 +469,283 @@ describe('provider wrappers', () => {
         code: SpanStatusCode.ERROR,
         message: 'Stream ended without a final message.',
       });
+    });
+  });
+
+  describe('wrapOpenAI', () => {
+    function makeOpenAI(overrides: {
+      chatCreate?: jest.Mock;
+      responsesCreate?: jest.Mock;
+    }) {
+      return wrapOpenAI(
+        {
+          chat: { completions: { create: overrides.chatCreate ?? jest.fn() } },
+          completions: { create: jest.fn() },
+          embeddings: { create: jest.fn() },
+          images: { generate: jest.fn() },
+          moderations: {},
+          responses: { create: overrides.responsesCreate ?? jest.fn() },
+        },
+        { captureOptions },
+      );
+    }
+
+    it('records Chat Completions tool calls in the OpenTelemetry format and calls the API once', async () => {
+      const chatCreate = jest.fn(async (_params: unknown) => ({
+        id: 'chatcmpl_1',
+        model: 'gpt-test',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_2',
+                  type: 'function',
+                  function: {
+                    name: 'get_gate',
+                    arguments: '{"id":"checkout"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        usage: { prompt_tokens: 12, completion_tokens: 5 },
+      }));
+      const client = makeOpenAI({ chatCreate });
+
+      await prompt.withLive(() =>
+        client.chat.completions.create({
+          model: 'gpt-test',
+          messages: [
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Is checkout on?' },
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'list_gates', arguments: '{}' },
+                },
+              ],
+            },
+            { role: 'tool', tool_call_id: 'call_1', content: '["checkout"]' },
+          ],
+        }),
+      );
+
+      expect(chatCreate).toHaveBeenCalledTimes(1);
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      const [span] = spans;
+      expect(span.attributes).toMatchObject({
+        'gen_ai.provider.name': 'openai',
+        'statsig.llm.prompt_version_id': 'version-2',
+      });
+      expect(json(span, 'gen_ai.system_instructions')).toEqual([
+        { type: 'text', content: 'You are helpful.' },
+      ]);
+      expect(json(span, 'gen_ai.input.messages')).toEqual([
+        { role: 'user', parts: [{ type: 'text', content: 'Is checkout on?' }] },
+        {
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool_call',
+              id: 'call_1',
+              name: 'list_gates',
+              arguments: {},
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          parts: [
+            {
+              type: 'tool_call_response',
+              id: 'call_1',
+              response: '["checkout"]',
+            },
+          ],
+        },
+      ]);
+      expect(json(span, 'gen_ai.output.messages')).toEqual([
+        {
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool_call',
+              id: 'call_2',
+              name: 'get_gate',
+              arguments: { id: 'checkout' },
+            },
+          ],
+          finish_reason: 'tool_call',
+        },
+      ]);
+    });
+
+    it('aggregates streamed text and tool-call deltas and calls the API once', async () => {
+      const chunks = [
+        {
+          id: 'chatcmpl_2',
+          model: 'gpt-test',
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Let me check. ' },
+            },
+          ],
+        },
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_3',
+                    function: { name: 'get_gate', arguments: '{"id":' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  { index: 0, function: { arguments: '"checkout"}' } },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        },
+      ];
+      const chatCreate = jest.fn(async (_params: unknown) => yieldAll(chunks));
+      const client = makeOpenAI({ chatCreate });
+
+      const stream = (await client.chat.completions.create({
+        model: 'gpt-test',
+        stream: true,
+        messages: [{ role: 'user', content: 'Is checkout on?' }],
+      })) as unknown as AsyncIterable<unknown>;
+      for await (const _chunk of stream) {
+        // consume
+      }
+
+      expect(chatCreate).toHaveBeenCalledTimes(1);
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(json(spans[0], 'gen_ai.output.messages')).toEqual([
+        {
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'Let me check. ' },
+            {
+              type: 'tool_call',
+              id: 'call_3',
+              name: 'get_gate',
+              arguments: { id: 'checkout' },
+            },
+          ],
+          finish_reason: 'tool_call',
+        },
+      ]);
+    });
+
+    it('records Responses API instructions, input items and output', async () => {
+      const responsesCreate = jest.fn(async (_params: unknown) => ({
+        id: 'resp_1',
+        model: 'gpt-test',
+        status: 'completed',
+        output: [
+          {
+            type: 'reasoning',
+            summary: [{ type: 'summary_text', text: 'Gate is listed.' }],
+          },
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'Checkout is on.' }],
+          },
+        ],
+        usage: { input_tokens: 20, output_tokens: 8 },
+      }));
+      const client = makeOpenAI({ responsesCreate });
+
+      await client.responses.create({
+        model: 'gpt-test',
+        instructions: 'Be brief.',
+        input: [
+          {
+            role: 'user',
+            content: [{ type: 'input_text', text: 'Is checkout on?' }],
+          },
+          {
+            type: 'function_call',
+            call_id: 'call_1',
+            name: 'list_gates',
+            arguments: '{}',
+          },
+          {
+            type: 'function_call_output',
+            call_id: 'call_1',
+            output: '["checkout"]',
+          },
+        ],
+      });
+
+      expect(responsesCreate).toHaveBeenCalledTimes(1);
+      const [span] = exporter.getFinishedSpans();
+      expect(json(span, 'gen_ai.system_instructions')).toEqual([
+        { type: 'text', content: 'Be brief.' },
+      ]);
+      expect(json(span, 'gen_ai.input.messages')).toEqual([
+        { role: 'user', parts: [{ type: 'text', content: 'Is checkout on?' }] },
+        {
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool_call',
+              id: 'call_1',
+              name: 'list_gates',
+              arguments: {},
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          parts: [
+            {
+              type: 'tool_call_response',
+              id: 'call_1',
+              response: '["checkout"]',
+            },
+          ],
+        },
+      ]);
+      expect(json(span, 'gen_ai.output.messages')).toEqual([
+        {
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', content: 'Gate is listed.' },
+            { type: 'text', content: 'Checkout is on.' },
+          ],
+          finish_reason: 'stop',
+        },
+      ]);
     });
   });
 

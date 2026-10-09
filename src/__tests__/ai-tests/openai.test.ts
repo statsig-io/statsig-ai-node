@@ -17,6 +17,7 @@ import {
   OPENAI_TEST_MODEL,
   OPENAI_TEST_REASONING_MODEL,
 } from './models';
+import { toOpenAIRequestMessages } from '../../wrappers/openai-messages';
 
 type OperationRequiredAttributes = {
   id: boolean;
@@ -349,9 +350,8 @@ async function validateTraceAndEvent({
     expect(meta['gen_ai.input.messages']).toBeDefined();
     expect(attrs['gen_ai.input.messages']).toBeDefined();
     expect(meta['gen_ai.input.messages_len']).toBeDefined();
-    const inputMessages = args.messages ?? args.input ?? [];
     expect(attrs['gen_ai.input.messages_len'].intValue).toBe(
-      JSON.stringify(inputMessages).length,
+      JSON.stringify(toOpenAIRequestMessages(args).input).length,
     );
   }
 

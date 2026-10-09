@@ -16,7 +16,9 @@ import {
   extractBaseAttributes,
   extractResponseAttributes,
 } from './attribute-helper';
+import { jsonAttribute } from './gen-ai-messages';
 import { startGenAISpan } from './gen-ai-span';
+import { toOpenAIOutputMessages } from './openai-messages';
 const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
   'openai.chat.completions.create': 'chat',
   'openai.completions.create': 'text_completion',
@@ -171,6 +173,11 @@ export class StatsigOpenAIProxy {
     options: unknown,
     opName: string,
   ): Promise<ResponseWithData<Result>> {
+    if (!params.stream) {
+      const data = await this.wrapMethod(callFn, opName)(params, options);
+      return { data };
+    }
+
     const spanName = `${OP_TO_OTEL_SEMANTIC_MAP[opName]} ${params.model ?? 'unknown'}`;
     const telemetry = this.startSpan(
       spanName,
@@ -178,23 +185,30 @@ export class StatsigOpenAIProxy {
       params as Record<string, any>,
     );
 
-    const maybeStream = callFn(params, options);
-
-    if (params.stream) {
-      const maybeStream = await callFn(params, options);
-      if (isAsyncIterable(maybeStream)) {
-        telemetry.setAttributes({ 'gen_ai.request.stream': true });
-        const wrappedStream = this.wrapStream(
-          maybeStream,
-          telemetry,
-          this._captureOptions,
-        );
-        return { data: wrappedStream as Result };
-      }
+    let data: Result;
+    try {
+      data = await callFn(params, options);
+    } catch (e) {
+      telemetry.fail(e);
+      telemetry.end();
+      throw e;
     }
 
-    const wrappedNonStreamMethod = this.wrapMethod(callFn, opName);
-    const data = await wrappedNonStreamMethod(params, options);
+    if (isAsyncIterable(data)) {
+      telemetry.setAttributes({ 'gen_ai.request.stream': true });
+      const wrappedStream = this.wrapStream(
+        data,
+        telemetry,
+        this._captureOptions,
+      );
+      return { data: wrappedStream as Result };
+    }
+
+    telemetry.setStatus({ code: SpanStatusCode.OK });
+    telemetry.setAttributes(
+      extractSingleOAIResponseAttributes(data ?? {}, this._captureOptions),
+    );
+    telemetry.end();
     return { data };
   }
 
@@ -350,7 +364,7 @@ function parseOAIStreamingResponseIntoAttributes(
     return {};
   }
   const attrs: Record<string, any> = {};
-  const { id, model, choices, aggregatedAttrs } =
+  const { id, model, choices, responsesResult, aggregatedAttrs } =
     aggregateStreamedChoices(chunks);
 
   attrs['gen_ai.response.id'] = id;
@@ -362,7 +376,11 @@ function parseOAIStreamingResponseIntoAttributes(
     (c: any) => c.finish_reason,
   );
   if (options.capture_all || options.capture_output_messages) {
-    attrs['gen_ai.output.messages'] = choices;
+    // Responses streams carry the final response on their completed event.
+    const output = toOpenAIOutputMessages(responsesResult ?? { choices });
+    if (output) {
+      attrs['gen_ai.output.messages'] = jsonAttribute(output);
+    }
   }
   return attrs;
 }
@@ -375,6 +393,11 @@ function aggregateStreamedChoices(chunks: any[]) {
       message: {
         role?: string;
         content?: string;
+        tool_calls?: {
+          id?: string;
+          type: 'function';
+          function: { name?: string; arguments: string };
+        }[];
       };
       finish_reason?: string;
     }
@@ -384,6 +407,7 @@ function aggregateStreamedChoices(chunks: any[]) {
 
   let id = undefined;
   let model = undefined;
+  let responsesResult: Record<string, any> | undefined = undefined;
 
   for (let chunk of chunks) {
     if (chunk.response) {
@@ -396,6 +420,9 @@ function aggregateStreamedChoices(chunks: any[]) {
     }
     if (chunk.model && !model) {
       model = chunk.model;
+    }
+    if (Array.isArray(chunk.output)) {
+      responsesResult = chunk;
     }
 
     const usage = chunk.usage;
@@ -435,6 +462,17 @@ function aggregateStreamedChoices(chunks: any[]) {
     if (typeof delta?.content === 'string')
       agg.message.content += delta.content;
 
+    for (const toolCallDelta of delta?.tool_calls ?? []) {
+      const toolCalls = (agg.message.tool_calls ??= []);
+      const toolCall = (toolCalls[toolCallDelta.index ?? 0] ??= {
+        type: 'function',
+        function: { arguments: '' },
+      });
+      toolCall.id ??= toolCallDelta.id;
+      toolCall.function.name ??= toolCallDelta.function?.name;
+      toolCall.function.arguments += toolCallDelta.function?.arguments ?? '';
+    }
+
     if (finish_reason) {
       agg.finish_reason = finish_reason;
     }
@@ -444,6 +482,7 @@ function aggregateStreamedChoices(chunks: any[]) {
     id,
     model,
     choices: Object.values(choicesMap),
+    responsesResult,
     aggregatedAttrs,
   };
 }
