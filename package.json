@@ -64,6 +64,7 @@
     "@statsig/statsig-node-core-rc": ">=0.0.0-0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "0.120.0",
     "@statsig/statsig-node-core": ">=0.0.0-0",
     "@statsig/statsig-node-core-rc": "npm:@statsig/statsig-node-core@rc",
     "@types/compression": "^1.7.5",

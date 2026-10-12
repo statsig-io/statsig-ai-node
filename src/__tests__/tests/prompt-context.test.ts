@@ -7,6 +7,7 @@ import { PromptVersion } from '../../prompts/PromptVersion';
 import {
   STATSIG_CTX_KEY_ACTIVE_PROMPT,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
 } from '../../otel/conventions';
 import { getUserFromContext } from '../../otel/user-context';
 
@@ -38,6 +39,7 @@ describe('Prompt context helpers', () => {
     });
     liveVersion = {
       getName: jest.fn(() => 'VersionA'),
+      getID: jest.fn(() => 'version-a'),
     } as unknown as PromptVersion;
     prompt = new Prompt(user, 'example-prompt', liveVersion, []);
   });
@@ -56,6 +58,9 @@ describe('Prompt context helpers', () => {
       );
       expect(activeCtx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION)).toBe(
         'VersionA',
+      );
+      expect(activeCtx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID)).toBe(
+        'version-a',
       );
       expect(getUserFromContext(activeCtx)).toEqual({
         userID: 'prompt-user',

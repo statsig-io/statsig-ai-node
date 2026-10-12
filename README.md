@@ -33,6 +33,20 @@ The AI SDK provides convenient hooks for developers working with LLMs to iterate
 
 Read through the [Documentation](https://docs.statsig.com/ai-evals/node?ref=gh_ai) to see code samples and how to get started.
 
+## Tracing model calls
+
+Wrap your provider client to record each model call as an OpenTelemetry span. Calls made inside `prompt.withLive(...)` are tagged with the prompt name, version name and version ID.
+
+```ts
+import { wrapAnthropic, wrapGemini, wrapOpenAI } from '@statsig/statsig-ai';
+
+const openai = wrapOpenAI(new OpenAI());
+const anthropic = wrapAnthropic(new Anthropic()); // messages.create (incl. stream: true) and messages.stream()
+const gemini = wrapGemini(new GoogleGenAI({})); // models.generateContent / generateContentStream
+```
+
+Messages are only recorded when you opt in with `captureOptions` (for example `{ captureOptions: { capture_all: true } }`). All wrappers record `gen_ai.input.messages`, `gen_ai.output.messages` and `gen_ai.system_instructions` in the [OpenTelemetry GenAI message format](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) (`role` + `parts` such as `text`, `tool_call` and `tool_call_response`).
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

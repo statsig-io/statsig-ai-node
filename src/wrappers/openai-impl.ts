@@ -1,6 +1,5 @@
 import {
   AttributeValue,
-  SpanKind,
   SpanStatusCode,
   Tracer,
   context,
@@ -12,28 +11,14 @@ import {
   OpenAILike,
   StatsigOpenAIProxyConfig,
 } from './openai-configs';
-import {
-  STATSIG_ATTR_LLM_PROMPT_NAME,
-  STATSIG_ATTR_LLM_PROMPT_VERSION,
-  STATSIG_ATTR_SPAN_LLM_ROOT,
-  STATSIG_ATTR_SPAN_TYPE,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-  STATSIG_SPAN_LLM_ROOT_VALUE,
-  StatsigSpanType,
-} from '../otel/conventions';
-import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
 import { OtelSingleton } from '../otel/singleton';
 import {
   extractBaseAttributes,
   extractResponseAttributes,
 } from './attribute-helper';
-import {
-  createResourceAttributes,
-  StatsigResourceAttributes,
-} from '../otel/resources';
-
-const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
+import { jsonAttribute } from './gen-ai-messages';
+import { startGenAISpan } from './gen-ai-span';
+import { toOpenAIOutputMessages } from './openai-messages';
 const OP_TO_OTEL_SEMANTIC_MAP: Record<string, string> = {
   'openai.chat.completions.create': 'chat',
   'openai.completions.create': 'text_completion',
@@ -188,6 +173,11 @@ export class StatsigOpenAIProxy {
     options: unknown,
     opName: string,
   ): Promise<ResponseWithData<Result>> {
+    if (!params.stream) {
+      const data = await this.wrapMethod(callFn, opName)(params, options);
+      return { data };
+    }
+
     const spanName = `${OP_TO_OTEL_SEMANTIC_MAP[opName]} ${params.model ?? 'unknown'}`;
     const telemetry = this.startSpan(
       spanName,
@@ -195,23 +185,30 @@ export class StatsigOpenAIProxy {
       params as Record<string, any>,
     );
 
-    const maybeStream = callFn(params, options);
-
-    if (params.stream) {
-      const maybeStream = await callFn(params, options);
-      if (isAsyncIterable(maybeStream)) {
-        telemetry.setAttributes({ 'gen_ai.request.stream': true });
-        const wrappedStream = this.wrapStream(
-          maybeStream,
-          telemetry,
-          this._captureOptions,
-        );
-        return { data: wrappedStream as Result };
-      }
+    let data: Result;
+    try {
+      data = await callFn(params, options);
+    } catch (e) {
+      telemetry.fail(e);
+      telemetry.end();
+      throw e;
     }
 
-    const wrappedNonStreamMethod = this.wrapMethod(callFn, opName);
-    const data = await wrappedNonStreamMethod(params, options);
+    if (isAsyncIterable(data)) {
+      telemetry.setAttributes({ 'gen_ai.request.stream': true });
+      const wrappedStream = this.wrapStream(
+        data,
+        telemetry,
+        this._captureOptions,
+      );
+      return { data: wrappedStream as Result };
+    }
+
+    telemetry.setStatus({ code: SpanStatusCode.OK });
+    telemetry.setAttributes(
+      extractSingleOAIResponseAttributes(data ?? {}, this._captureOptions),
+    );
+    telemetry.end();
     return { data };
   }
 
@@ -335,74 +332,13 @@ export class StatsigOpenAIProxy {
     opName: string,
     params: Record<string, any>,
   ): SpanTelemetry {
-    let ctx = context.active();
-    const baseAttrs = extractOAIBaseAttributes(
-      opName,
-      params as Record<string, any>,
-      this._captureOptions,
-    );
-    const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
-    const statsigAttrs: Record<string, AttributeValue> = {
-      [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
-    };
-    if (
-      typeof maybeRootSpan === 'undefined' ||
-      (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
-    ) {
-      ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
-      statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
-    }
-
-    const maybeContextPrompt = ctx.getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT);
-    const maybeContextPromptVersion = ctx.getValue(
-      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-    );
-    if (maybeContextPrompt && typeof maybeContextPrompt === 'string') {
-      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_NAME] = maybeContextPrompt;
-    }
-    if (
-      maybeContextPromptVersion &&
-      typeof maybeContextPromptVersion === 'string'
-    ) {
-      statsigAttrs[STATSIG_ATTR_LLM_PROMPT_VERSION] = maybeContextPromptVersion;
-    }
-
-    const maybeStatsigContextAttrs = getStatsigSpanAttrsFromContext(ctx);
-    if (maybeStatsigContextAttrs) {
-      Object.assign(statsigAttrs, maybeStatsigContextAttrs);
-    }
-
-    const attributes: Record<string, AttributeValue | undefined> = {
-      ...(this._customAttributes ?? {}),
-      ...(baseAttrs ?? {}),
-      ...statsigAttrs,
-    };
-
-    const span = this.tracer.startSpan(
+    return startGenAISpan(
+      this.tracer,
       spanName,
-      {
-        kind: SpanKind.CLIENT,
-        attributes,
-      },
-      ctx,
-    );
-
-    let resources: StatsigResourceAttributes;
-    if (OtelSingleton.isInitialized()) {
-      resources = OtelSingleton.getInstance().getResources();
-    } else {
-      resources = createResourceAttributes();
-    }
-
-    const telemetry = new SpanTelemetry(
-      span,
-      spanName,
+      extractOAIBaseAttributes(opName, params, this._captureOptions),
+      this._customAttributes,
       this._maxJSONChars,
-      resources,
     );
-
-    telemetry.setAttributes(attributes);
-    return telemetry;
   }
 }
 
@@ -428,7 +364,7 @@ function parseOAIStreamingResponseIntoAttributes(
     return {};
   }
   const attrs: Record<string, any> = {};
-  const { id, model, choices, aggregatedAttrs } =
+  const { id, model, choices, responsesResult, aggregatedAttrs } =
     aggregateStreamedChoices(chunks);
 
   attrs['gen_ai.response.id'] = id;
@@ -440,7 +376,11 @@ function parseOAIStreamingResponseIntoAttributes(
     (c: any) => c.finish_reason,
   );
   if (options.capture_all || options.capture_output_messages) {
-    attrs['gen_ai.output.messages'] = choices;
+    // Responses streams carry the final response on their completed event.
+    const output = toOpenAIOutputMessages(responsesResult ?? { choices });
+    if (output) {
+      attrs['gen_ai.output.messages'] = jsonAttribute(output);
+    }
   }
   return attrs;
 }
@@ -453,6 +393,11 @@ function aggregateStreamedChoices(chunks: any[]) {
       message: {
         role?: string;
         content?: string;
+        tool_calls?: {
+          id?: string;
+          type: 'function';
+          function: { name?: string; arguments: string };
+        }[];
       };
       finish_reason?: string;
     }
@@ -462,6 +407,7 @@ function aggregateStreamedChoices(chunks: any[]) {
 
   let id = undefined;
   let model = undefined;
+  let responsesResult: Record<string, any> | undefined = undefined;
 
   for (let chunk of chunks) {
     if (chunk.response) {
@@ -474,6 +420,9 @@ function aggregateStreamedChoices(chunks: any[]) {
     }
     if (chunk.model && !model) {
       model = chunk.model;
+    }
+    if (Array.isArray(chunk.output)) {
+      responsesResult = chunk;
     }
 
     const usage = chunk.usage;
@@ -513,6 +462,17 @@ function aggregateStreamedChoices(chunks: any[]) {
     if (typeof delta?.content === 'string')
       agg.message.content += delta.content;
 
+    for (const toolCallDelta of delta?.tool_calls ?? []) {
+      const toolCalls = (agg.message.tool_calls ??= []);
+      const toolCall = (toolCalls[toolCallDelta.index ?? 0] ??= {
+        type: 'function',
+        function: { arguments: '' },
+      });
+      toolCall.id ??= toolCallDelta.id;
+      toolCall.function.name ??= toolCallDelta.function?.name;
+      toolCall.function.arguments += toolCallDelta.function?.arguments ?? '';
+    }
+
     if (finish_reason) {
       agg.finish_reason = finish_reason;
     }
@@ -522,6 +482,7 @@ function aggregateStreamedChoices(chunks: any[]) {
     id,
     model,
     choices: Object.values(choicesMap),
+    responsesResult,
     aggregatedAttrs,
   };
 }

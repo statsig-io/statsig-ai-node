@@ -7,6 +7,8 @@ export { AIEvalGradeData } from './AIGradingData';
 export { AgentConfig } from './agents/AgentConfig';
 export { PromptEvaluationOptions } from './prompts/PromptEvalOptions';
 export { wrapOpenAI } from './wrappers/openai';
+export { wrapAnthropic } from './wrappers/anthropic';
+export { wrapGemini } from './wrappers/gemini';
 export { initializeTracing } from './otel/otel';
 export { StatsigSpanProcessor } from './otel/processor';
 export { StatsigOTLPTraceExporter } from './otel/exporter';
