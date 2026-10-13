@@ -5,6 +5,7 @@ import { context } from '@opentelemetry/api';
 import {
   STATSIG_CTX_KEY_ACTIVE_PROMPT,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
+  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
 } from '../otel/conventions';
 import { setUserToContext } from '../otel/user-context';
 import Statsig, { StatsigSelector } from '../wrappers/statsig';
@@ -65,6 +66,10 @@ export class Prompt {
     ctx = ctx.setValue(
       STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
       this._liveConfig.getName(),
+    );
+    ctx = ctx.setValue(
+      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
+      this._liveConfig.getID(),
     );
     ctx = setUserToContext(ctx, this._user);
 

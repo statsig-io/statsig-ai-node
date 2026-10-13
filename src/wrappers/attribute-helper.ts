@@ -1,5 +1,10 @@
 import { AttributeValue } from '@opentelemetry/api';
+import { jsonAttribute } from './gen-ai-messages';
 import { GenAICaptureOptions } from './openai-configs';
+import {
+  toOpenAIOutputMessages,
+  toOpenAIRequestMessages,
+} from './openai-messages';
 
 export function extractBaseAttributes(
   operationName: string,
@@ -23,14 +28,17 @@ export function extractBaseAttributes(
   attrs['gen_ai.request.seed'] = params.seed;
   attrs['gen_ai.output.type'] = params.response_format?.type;
 
-  const msgs = params.messages ?? params.input ?? [];
-  if (options.capture_all || options.capture_input_messages) {
-    attrs['gen_ai.input.messages'] = msgs;
-  }
-  if (options.capture_all || options.capture_system_instructions) {
-    attrs['gen_ai.system_instructions'] = msgs.filter(
-      (m: any) => m.role === 'system',
-    );
+  const captureInput = options.capture_all || options.capture_input_messages;
+  const captureSystem =
+    options.capture_all || options.capture_system_instructions;
+  if (captureInput || captureSystem) {
+    const { input, systemInstructions } = toOpenAIRequestMessages(params);
+    if (captureInput) {
+      attrs['gen_ai.input.messages'] = jsonAttribute(input);
+    }
+    if (captureSystem && systemInstructions.length > 0) {
+      attrs['gen_ai.system_instructions'] = jsonAttribute(systemInstructions);
+    }
   }
   if (options.capture_all || options.capture_tool_definitions) {
     attrs['gen_ai.tool.definitions'] = params.tools;
@@ -56,7 +64,10 @@ export function extractResponseAttributes(
   if (finishReasons.length)
     attrs['gen_ai.response.finish_reasons'] = finishReasons;
   if (options.capture_all || options.capture_output_messages) {
-    attrs['gen_ai.output.messages'] = outputMessages;
+    const output = toOpenAIOutputMessages(res);
+    if (output) {
+      attrs['gen_ai.output.messages'] = jsonAttribute(output);
+    }
   }
   return attrs;
 }
