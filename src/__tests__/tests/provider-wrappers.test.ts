@@ -16,11 +16,24 @@ import { PromptVersion } from '../../prompts/PromptVersion';
 import { wrapAnthropic } from '../../wrappers/anthropic';
 import { wrapGemini } from '../../wrappers/gemini';
 import { wrapOpenAI } from '../../wrappers/openai';
+import { GenAICaptureOptions } from '../../wrappers/openai-configs';
 
 async function* yieldAll<T>(items: T[]): AsyncGenerator<T> {
   for (const item of items) {
     yield item;
   }
+}
+
+function makeVersion(id: string, name: string): PromptVersion {
+  const values: Record<string, unknown> = {
+    name,
+    prompts: [{ role: 'user', content: 'Answer: {{input}}' }],
+  };
+  const config = {
+    name: `prompt_config:${id}`,
+    getValue: (key: string, fallback: unknown) => values[key] ?? fallback,
+  };
+  return new PromptVersion(config as never, false);
 }
 
 function json(span: ReadableSpan, key: string): unknown {
@@ -921,5 +934,137 @@ describe('provider wrappers', () => {
         },
       ]);
     });
+  });
+
+  describe('prompt version tagging', () => {
+    type Send = (
+      options: GenAICaptureOptions,
+      content: string,
+    ) => Promise<unknown>;
+    const providers: [string, Send][] = [
+      [
+        'wrapOpenAI',
+        (options, content) =>
+          wrapOpenAI(
+            {
+              chat: {
+                completions: {
+                  create: jest.fn(async (_params: unknown) => ({
+                    id: 'chatcmpl_1',
+                    model: 'gpt-test',
+                    choices: [
+                      {
+                        index: 0,
+                        message: { role: 'assistant', content: 'ok' },
+                        finish_reason: 'stop',
+                      },
+                    ],
+                  })),
+                },
+              },
+              completions: { create: jest.fn() },
+              embeddings: { create: jest.fn() },
+              images: { generate: jest.fn() },
+              moderations: {},
+              responses: { create: jest.fn() },
+            },
+            { captureOptions: options },
+          ).chat.completions.create({
+            model: 'gpt-test',
+            messages: [{ role: 'user', content }],
+          }),
+      ],
+      [
+        'wrapAnthropic',
+        (options, content) =>
+          wrapAnthropic(
+            {
+              messages: {
+                create: jest.fn((_params: unknown) =>
+                  Object.assign(
+                    Promise.resolve({
+                      id: 'msg_1',
+                      model: 'claude-test',
+                      role: 'assistant',
+                      content: [{ type: 'text', text: 'ok' }],
+                      stop_reason: 'end_turn',
+                    }),
+                    { withResponse: jest.fn() },
+                  ),
+                ),
+              },
+            },
+            { captureOptions: options },
+          ).messages.create({
+            model: 'claude-test',
+            max_tokens: 16,
+            messages: [{ role: 'user', content }],
+          }),
+      ],
+      [
+        'wrapGemini',
+        (options, content) =>
+          wrapGemini(
+            {
+              models: {
+                generateContent: jest.fn(async (_params: unknown) => ({
+                  candidates: [
+                    {
+                      content: { role: 'model', parts: [{ text: 'ok' }] },
+                      finishReason: 'STOP',
+                    },
+                  ],
+                })),
+              },
+            },
+            { captureOptions: options },
+          ).models.generateContent({
+            model: 'gemini-test',
+            contents: [{ role: 'user', parts: [{ text: content }] }],
+          }),
+      ],
+    ];
+
+    it.each(providers)(
+      '%s tags the span with the active version and its template variables',
+      async (_name, send) => {
+        const candidate = makeVersion('version-3', 'v3');
+
+        await prompt.withVersion(candidate, async (version) => {
+          const [message] = version.getPromptMessages({ input: 'Hi' });
+          await send({ capture_input_messages: true }, message.content);
+        });
+
+        const [span] = exporter.getFinishedSpans();
+        expect(span.attributes).toMatchObject({
+          'statsig.llm.prompt_name': 'support_agent',
+          'statsig.llm.prompt_version': 'v3',
+          'statsig.llm.prompt_version_id': 'version-3',
+        });
+        expect(json(span, 'statsig.llm.prompt_template_variables')).toEqual({
+          input: 'Hi',
+        });
+      },
+    );
+
+    it.each(providers)(
+      '%s leaves out template variables when input capture is off',
+      async (_name, send) => {
+        const candidate = makeVersion('version-3', 'v3');
+
+        await prompt.withVersion(candidate, async (version) => {
+          const [message] = version.getPromptMessages({ input: 'Hi' });
+          await send({}, message.content);
+        });
+
+        const [span] = exporter.getFinishedSpans();
+        expect(span.attributes['statsig.llm.prompt_version_id']).toBe(
+          'version-3',
+        );
+        expect(span.attributes).not.toHaveProperty(
+          'statsig.llm.prompt_template_variables',
+        );
+      },
+    );
   });
 });

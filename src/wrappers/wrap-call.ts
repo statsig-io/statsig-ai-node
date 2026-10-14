@@ -14,6 +14,7 @@ import {
   StatsigGenAISpanType,
   StatsigSpanType,
 } from '../otel/conventions';
+import { getPromptSpanAttrsFromContext } from '../otel/prompt-context';
 import { OtelSingleton } from '../otel/singleton';
 import {
   getStatsigSpanAttrsFromContext,
@@ -67,6 +68,17 @@ export function wrap<TFun extends (...args: any[]) => any>(
 
     const result = tracer.startActiveSpan(opName, {}, ctx, (span) => {
       const telemetry = new SpanTelemetry(span, opName);
+      // A workflow usually renders its prompt after the span starts, so the
+      // template variables are read again just before the span ends.
+      const spanCtx = context.active();
+      const getPromptAttrs = () =>
+        getPromptSpanAttrsFromContext(spanCtx, {
+          includeTemplateVariables: input.type === 'workflow',
+        });
+      const end = () => {
+        telemetry.setAttributes(getPromptAttrs());
+        telemetry.end();
+      };
       try {
         telemetry.setAttributes(input.attributes || {});
         telemetry.setAttributes({
@@ -76,6 +88,7 @@ export function wrap<TFun extends (...args: any[]) => any>(
         const contextAttributes = {
           ...getUserSpanAttrsFromContext(context.active()),
           ...getStatsigSpanAttrsFromContext(context.active()),
+          ...getPromptAttrs(),
         };
         telemetry.setAttributes(contextAttributes);
         telemetry.setAttributes(getAttributesForInputType(input));
@@ -85,7 +98,7 @@ export function wrap<TFun extends (...args: any[]) => any>(
         if (isThenable(result)) {
           return result
             .then((res) => {
-              telemetry.end();
+              end();
               telemetry.setStatus({ code: SpanStatusCode.OK });
               return res;
             })
@@ -95,11 +108,11 @@ export function wrap<TFun extends (...args: any[]) => any>(
                 code: SpanStatusCode.ERROR,
                 message: (e as Error).message,
               });
-              telemetry.end();
+              end();
               throw e;
             }) as ReturnType<TFun>;
         }
-        telemetry.end();
+        end();
         return result;
       } catch (e) {
         telemetry.recordException(e as Error);
@@ -107,7 +120,7 @@ export function wrap<TFun extends (...args: any[]) => any>(
           code: SpanStatusCode.ERROR,
           message: (e as Error).message,
         });
-        telemetry.end();
+        end();
         throw e;
       }
     });

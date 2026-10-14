@@ -189,6 +189,7 @@ function startChatSpan(
     requestAttributes,
     config.customAttributes,
     config.maxJSONChars ?? 40_000,
+    config.captureOptions ?? {},
   );
 }
 

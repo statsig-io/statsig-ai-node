@@ -83,6 +83,7 @@ function traceGenerateContent(
     extractRequestAttributes(sourceName, params, captureOptions),
     config.customAttributes,
     config.maxJSONChars ?? 40_000,
+    captureOptions,
   );
   return traceGenAICall(telemetry, call, {
     onResult: (response) =>

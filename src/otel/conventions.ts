@@ -18,6 +18,8 @@ export const STATSIG_ATTR_LLM_PROMPT_NAME = 'statsig.llm.prompt_name';
 export const STATSIG_ATTR_LLM_PROMPT_VERSION = 'statsig.llm.prompt_version';
 export const STATSIG_ATTR_LLM_PROMPT_VERSION_ID =
   'statsig.llm.prompt_version_id';
+export const STATSIG_ATTR_LLM_PROMPT_TEMPLATE_VARIABLES =
+  'statsig.llm.prompt_template_variables';
 export const STATSIG_ATTR_USER_ID = 'statsig.user_id';
 export const STATSIG_ATTR_CUSTOM_IDS = 'statsig.custom_ids';
 export const STATSIG_ATTR_ACTIVITY_ID = 'statsig.activity_id';
@@ -30,6 +32,9 @@ export const STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION = Symbol(
 );
 export const STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID = Symbol(
   'STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID',
+);
+export const STATSIG_CTX_KEY_ACTIVE_PROMPT_TEMPLATE = Symbol(
+  'STATSIG_CTX_KEY_ACTIVE_PROMPT_TEMPLATE',
 );
 export const STATSIG_CTX_KEY_ACTIVE_USER = Symbol(
   'STATSIG_CTX_KEY_ACTIVE_USER',

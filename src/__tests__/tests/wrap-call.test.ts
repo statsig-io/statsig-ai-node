@@ -21,6 +21,8 @@ import {
   StatsigSpanType,
 } from '../../otel/conventions';
 import { OtelSingleton } from '../../otel/singleton';
+import { Prompt } from '../../prompts/Prompt';
+import { PromptVersion } from '../../prompts/PromptVersion';
 import { startWorkflow, wrap } from '../../wrappers/wrap-call';
 import { MockScrapi } from '../shared/MockScrapi';
 import { getDCSFilePath } from '../shared/utils';
@@ -225,6 +227,56 @@ describe('wrap-call', () => {
       'outer-workflow',
     );
     expect(event.metadata['env.stage']).toBe('staging');
+  });
+
+  it('tags workflow spans with the active version and the variables rendered inside them', async () => {
+    const values: Record<string, unknown> = {
+      name: 'v3',
+      prompts: [{ role: 'user', content: 'Answer: {{input}}' }],
+    };
+    const version = new PromptVersion(
+      {
+        name: 'prompt_config:version-3',
+        getValue: (key: string, fallback: unknown) => values[key] ?? fallback,
+      } as never,
+      true,
+    );
+    const prompt = new Prompt(
+      new StatsigUser({ userID: 'user-1' }),
+      'support_agent',
+      version,
+      [],
+    );
+
+    await prompt.withLive(() =>
+      startWorkflow({ name: 'agent-turn' }, async () => {
+        version.getPromptMessages({ input: 'Hi' });
+        wrap({ type: 'tool', name: 'lookup' }, () => 'ok')();
+      }),
+    );
+
+    await provider.forceFlush();
+    const spans = exporter.getFinishedSpans();
+    const workflow = spans.find((s) => s.name === 'invoke_workflow')!;
+    const tool = spans.find((s) => s.name === 'execute_tool')!;
+
+    expect(workflow.attributes).toMatchObject({
+      'statsig.llm.prompt_name': 'support_agent',
+      'statsig.llm.prompt_version_id': 'version-3',
+      'statsig.llm.prompt_template_variables': JSON.stringify({ input: 'Hi' }),
+    });
+    expect(tool.attributes['statsig.llm.prompt_version_id']).toBe('version-3');
+    expect(tool.attributes).not.toHaveProperty(
+      'statsig.llm.prompt_template_variables',
+    );
+
+    await StatsigAI.shared().flushEvents();
+    const workflowEvent = scrapi
+      .getLoggedEvents('statsig::gen_ai')
+      .find((e) => e.value === 'invoke_workflow');
+    expect(
+      workflowEvent?.metadata['statsig.llm.prompt_template_variables'],
+    ).toBe(JSON.stringify({ input: 'Hi' }));
   });
 
   describe('Statsig context propagation', () => {

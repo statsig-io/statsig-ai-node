@@ -9,7 +9,20 @@ import {
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
   STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
 } from '../../otel/conventions';
+import { getPromptSpanAttrsFromContext } from '../../otel/prompt-context';
 import { getUserFromContext } from '../../otel/user-context';
+
+function makeVersion(id: string, name: string): PromptVersion {
+  const values: Record<string, unknown> = {
+    name,
+    prompts: [{ role: 'user', content: 'Answer: {{input}}' }],
+  };
+  const config = {
+    name: `prompt_config:${id}`,
+    getValue: (key: string, fallback: unknown) => values[key] ?? fallback,
+  };
+  return new PromptVersion(config as never, false);
+}
 
 describe('Prompt context helpers', () => {
   let contextManager: AsyncLocalStorageContextManager;
@@ -100,5 +113,51 @@ describe('Prompt context helpers', () => {
       otelContext.active().getValue(STATSIG_CTX_KEY_ACTIVE_PROMPT),
     ).toBeUndefined();
     expect(getUserFromContext(otelContext.active())).toBeNull();
+  });
+
+  it('prompt.withVersion tags the given version and records its template variables', async () => {
+    const candidate = makeVersion('version-b', 'VersionB');
+    const other = makeVersion('version-c', 'VersionC');
+
+    await prompt.withVersion(candidate, async (version) => {
+      expect(version).toBe(candidate);
+      expect(
+        getPromptSpanAttrsFromContext(otelContext.active(), {
+          includeTemplateVariables: true,
+        }),
+      ).toEqual({
+        'statsig.llm.prompt_name': 'example-prompt',
+        'statsig.llm.prompt_version': 'VersionB',
+        'statsig.llm.prompt_version_id': 'version-b',
+      });
+
+      candidate.getPromptMessages({ input: 'hello' });
+      // Rendering a version the scope isn't for leaves the variables alone.
+      other.getPromptMessages({ input: 'ignored' });
+
+      const attrs = getPromptSpanAttrsFromContext(otelContext.active(), {
+        includeTemplateVariables: true,
+      });
+      expect(attrs['statsig.llm.prompt_template_variables']).toEqual({
+        input: 'hello',
+      });
+      expect(
+        getPromptSpanAttrsFromContext(otelContext.active(), {
+          includeTemplateVariables: false,
+        }),
+      ).not.toHaveProperty('statsig.llm.prompt_template_variables');
+    });
+  });
+
+  it('getPromptMessages outside a version scope renders without recording anything', () => {
+    const version = makeVersion('version-b', 'VersionB');
+    expect(version.getPromptMessages({ input: 'hi' })).toEqual([
+      { role: 'user', content: 'Answer: hi' },
+    ]);
+    expect(
+      getPromptSpanAttrsFromContext(otelContext.active(), {
+        includeTemplateVariables: true,
+      }),
+    ).toEqual({});
   });
 });

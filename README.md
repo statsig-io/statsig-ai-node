@@ -47,6 +47,25 @@ const gemini = wrapGemini(new GoogleGenAI({})); // models.generateContent / gene
 
 Messages are only recorded when you opt in with `captureOptions` (for example `{ captureOptions: { capture_all: true } }`). All wrappers record `gen_ai.input.messages`, `gen_ai.output.messages` and `gen_ai.system_instructions` in the [OpenTelemetry GenAI message format](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) (`role` + `parts` such as `text`, `tool_call` and `tool_call_response`).
 
+### Tagging calls with a prompt version
+
+Run the code that renders and sends a prompt inside `prompt.withLive(...)`, or `prompt.withVersion(version, ...)` for a Candidate. Wrapped model calls and `wrap` spans inside it get `statsig.llm.prompt_name`, `statsig.llm.prompt_version` and `statsig.llm.prompt_version_id`, which Statsig uses to attribute online eval grades to a version.
+
+The variables you pass to `getPromptMessages` are recorded as `statsig.llm.prompt_template_variables` (JSON), so the request can be re-run on another version. Model call spans only record them when input capture is on (`capture_all` or `capture_input_messages`). Workflow spans record the variables rendered inside them, so start the workflow inside the version scope.
+
+```ts
+const prompt = ai.getPrompt(user, 'support_bot');
+
+const runTurn = wrap({ type: 'workflow', name: 'support_turn' }, (version) =>
+  openai.chat.completions.create({
+    model: version.getModel(),
+    messages: version.getPromptMessages({ input }),
+  }),
+);
+
+await prompt.withLive(runTurn);
+```
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

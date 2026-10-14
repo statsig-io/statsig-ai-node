@@ -38,9 +38,9 @@ async function generateSomeResponses(user: StatsigUser, input: string) {
   });
 
   const firstCandidate = prompt.getCandidates()[0];
-  // you can also use withContext to create a custom prompt context without
-  // going through withLive BUT the span will not include prompt version
-  const anotherResponse = await prompt.withContext(async () => {
+  // withVersion tags the traces with any version, such as a candidate, and
+  // records the variables passed to getPromptMessages
+  const anotherResponse = await prompt.withVersion(firstCandidate, async () => {
     return await openai.chat.completions.create({
       model: firstCandidate.getModel() || 'gpt-3.5-turbo',
       messages: firstCandidate.getPromptMessages({ input }).map((msg) => ({

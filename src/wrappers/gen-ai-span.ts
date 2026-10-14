@@ -7,35 +7,34 @@ import {
   trace,
 } from '@opentelemetry/api';
 import {
-  STATSIG_ATTR_LLM_PROMPT_NAME,
-  STATSIG_ATTR_LLM_PROMPT_VERSION,
-  STATSIG_ATTR_LLM_PROMPT_VERSION_ID,
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigSpanType,
 } from '../otel/conventions';
+import { getPromptSpanAttrsFromContext } from '../otel/prompt-context';
 import {
   createResourceAttributes,
   StatsigResourceAttributes,
 } from '../otel/resources';
 import { OtelSingleton } from '../otel/singleton';
 import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
+import { GenAICaptureOptions } from './openai-configs';
 import { SpanTelemetry, TelemetryStream } from './span-telemetry';
 
 const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
 
 // Starts a client span for one model call, tagged with the active Statsig
 // prompt, prompt version and context so it can be graded and attributed.
+// Template variables usually hold user input, so they follow the same capture
+// option as the input messages.
 export function startGenAISpan(
   tracer: Tracer,
   spanName: string,
   baseAttrs: Record<string, AttributeValue>,
   customAttributes: Record<string, AttributeValue> | undefined,
   maxJSONChars: number,
+  captureOptions: GenAICaptureOptions,
 ): SpanTelemetry {
   let ctx = context.active();
   const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
@@ -50,20 +49,14 @@ export function startGenAISpan(
     statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
   }
 
-  const contextValues: [symbol, string][] = [
-    [STATSIG_CTX_KEY_ACTIVE_PROMPT, STATSIG_ATTR_LLM_PROMPT_NAME],
-    [STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION, STATSIG_ATTR_LLM_PROMPT_VERSION],
-    [
-      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
-      STATSIG_ATTR_LLM_PROMPT_VERSION_ID,
-    ],
-  ];
-  for (const [ctxKey, attr] of contextValues) {
-    const value = ctx.getValue(ctxKey);
-    if (value && typeof value === 'string') {
-      statsigAttrs[attr] = value;
-    }
-  }
+  Object.assign(
+    statsigAttrs,
+    getPromptSpanAttrsFromContext(ctx, {
+      includeTemplateVariables: Boolean(
+        captureOptions.capture_all || captureOptions.capture_input_messages,
+      ),
+    }),
+  );
 
   const maybeStatsigContextAttrs = getStatsigSpanAttrsFromContext(ctx);
   if (maybeStatsigContextAttrs) {

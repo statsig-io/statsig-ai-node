@@ -2,11 +2,8 @@ import { ParameterStore } from '@statsig/statsig-node-core';
 
 import { PromptVersion } from './PromptVersion';
 import { context } from '@opentelemetry/api';
-import {
-  STATSIG_CTX_KEY_ACTIVE_PROMPT,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-  STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
-} from '../otel/conventions';
+import { STATSIG_CTX_KEY_ACTIVE_PROMPT } from '../otel/conventions';
+import { setPromptVersionToContext } from '../otel/prompt-context';
 import { setUserToContext } from '../otel/user-context';
 import Statsig, { StatsigSelector } from '../wrappers/statsig';
 
@@ -61,20 +58,24 @@ export class Prompt {
   }
 
   withLive<R>(fn: (liveConfig: PromptVersion) => R): Promise<R> {
-    let ctx = context.active();
-    ctx = ctx.setValue(STATSIG_CTX_KEY_ACTIVE_PROMPT, this.name);
-    ctx = ctx.setValue(
-      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION,
-      this._liveConfig.getName(),
-    );
-    ctx = ctx.setValue(
-      STATSIG_CTX_KEY_ACTIVE_PROMPT_VERSION_ID,
-      this._liveConfig.getID(),
+    return this.withVersion(this._liveConfig, fn);
+  }
+
+  // Runs fn with the given version active, so traced model calls and workflow
+  // spans inside it are tagged with the version and the template variables
+  // passed to version.getPromptMessages().
+  withVersion<R>(
+    version: PromptVersion,
+    fn: (version: PromptVersion) => R,
+  ): Promise<R> {
+    let ctx = setPromptVersionToContext(
+      context.active(),
+      this.name,
+      version.getName(),
+      version.getID(),
     );
     ctx = setUserToContext(ctx, this._user);
-
-    const config = this._liveConfig;
-    return context.with(ctx, async () => await fn(config));
+    return context.with(ctx, async () => await fn(version));
   }
 
   withContext<A extends unknown[], F extends (...args: A) => ReturnType<F>>(

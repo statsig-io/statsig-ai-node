@@ -338,6 +338,7 @@ export class StatsigOpenAIProxy {
       extractOAIBaseAttributes(opName, params, this._captureOptions),
       this._customAttributes,
       this._maxJSONChars,
+      this._captureOptions,
     );
   }
 }

@@ -1,6 +1,7 @@
 import { DynamicConfig } from '@statsig/statsig-node-core';
 import { DynamicConfig as DynamicConfigRC } from '@statsig/statsig-node-core-rc';
 import Mustache from 'mustache';
+import { recordPromptTemplateVariables } from '../otel/prompt-context';
 
 export type PromptParams = {
   [key: string]: any;
@@ -117,6 +118,7 @@ export class PromptVersion {
     const prompts = this._promptVariant.getValue('prompts', [
       { role: 'system', content: '' },
     ]);
+    recordPromptTemplateVariables(this._id, params);
 
     const originalEscape = Mustache.escape;
     Mustache.escape = (text: string) => text;
