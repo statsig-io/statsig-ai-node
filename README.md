@@ -66,6 +66,18 @@ const runTurn = wrap({ type: 'workflow', name: 'support_turn' }, (version) =>
 await prompt.withLive(runTurn);
 ```
 
+### Marking the environment
+
+The `environment` option of `initializeTracing` (defaults to `NODE_ENV`) is recorded on the resource as `deployment.environment.name`. To tag only some spans, for example evals running in the same process as production code, run that code inside `withStatsigEnvironment`. Spans started inside it get a `statsig.environment` attribute, which overrides the resource value for those spans.
+
+Use `production` for live traffic. `eval` and `online_eval_judge` are reserved for spans Statsig generates: `Eval()` runs its tasks and scorers with `statsig.environment=eval`.
+
+```ts
+initializeTracing({ environment: 'production' });
+
+await withStatsigEnvironment('staging_canary', () => handleRequest(req));
+```
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

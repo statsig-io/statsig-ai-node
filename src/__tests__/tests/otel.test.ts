@@ -96,6 +96,7 @@ describe('OTEL initialize', () => {
     expect(resource.attributes[ATTR_SERVICE_NAME]).toBe('resource-service');
     expect(resource.attributes[ATTR_SERVICE_VERSION]).toBe('2.0.0');
     expect(resource.attributes.env).toBe('staging');
+    expect(resource.attributes['deployment.environment.name']).toBe('staging');
   });
 
   it('falls back to environment variables for resource attributes', () => {

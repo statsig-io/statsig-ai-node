@@ -1,5 +1,6 @@
 import { Context } from '@opentelemetry/api';
 import { BatchSpanProcessor, Span } from '@opentelemetry/sdk-trace-base';
+import { getEnvironmentSpanAttrsFromContext } from './environment-context';
 import { getUserSpanAttrsFromContext } from './user-context';
 
 export class StatsigSpanProcessor extends BatchSpanProcessor {
@@ -7,6 +8,11 @@ export class StatsigSpanProcessor extends BatchSpanProcessor {
     const statsigUserAttrs = getUserSpanAttrsFromContext(parentContext);
     if (statsigUserAttrs) {
       span.setAttributes(statsigUserAttrs);
+    }
+
+    const environmentAttrs = getEnvironmentSpanAttrsFromContext(parentContext);
+    if (environmentAttrs) {
+      span.setAttributes(environmentAttrs);
     }
 
     super.onStart(span, parentContext);

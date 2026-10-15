@@ -20,6 +20,7 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
+import { ATTR_DEPLOYMENT_ENVIRONMENT_NAME } from './conventions';
 import {
   createResourceAttributes,
   StatsigResourceAttributes,
@@ -115,6 +116,7 @@ function createTraceComponents(
       ...resources,
       [ATTR_SERVICE_NAME]: resources.service,
       [ATTR_SERVICE_VERSION]: resources.version,
+      [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: resources.environment,
       env: resources.environment,
     }),
   });

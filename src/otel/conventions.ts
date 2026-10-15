@@ -23,6 +23,9 @@ export const STATSIG_ATTR_LLM_PROMPT_TEMPLATE_VARIABLES =
 export const STATSIG_ATTR_USER_ID = 'statsig.user_id';
 export const STATSIG_ATTR_CUSTOM_IDS = 'statsig.custom_ids';
 export const STATSIG_ATTR_ACTIVITY_ID = 'statsig.activity_id';
+export const STATSIG_ATTR_ENVIRONMENT = 'statsig.environment';
+// Incubating in @opentelemetry/semantic-conventions, which recommends copying it.
+export const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = 'deployment.environment.name';
 
 export const STATSIG_CTX_KEY_ACTIVE_PROMPT = Symbol(
   'STATSIG_CTX_KEY_ACTIVE_PROMPT',
@@ -41,4 +44,7 @@ export const STATSIG_CTX_KEY_ACTIVE_USER = Symbol(
 );
 export const STATSIG_CTX_KEY_ACTIVE_CONTEXT = Symbol(
   'STATSIG_CTX_KEY_ACTIVE_CONTEXT',
+);
+export const STATSIG_CTX_KEY_ACTIVE_ENVIRONMENT = Symbol(
+  'STATSIG_CTX_KEY_ACTIVE_ENVIRONMENT',
 );

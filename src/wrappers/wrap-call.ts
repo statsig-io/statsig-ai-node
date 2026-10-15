@@ -14,6 +14,7 @@ import {
   StatsigGenAISpanType,
   StatsigSpanType,
 } from '../otel/conventions';
+import { getEnvironmentSpanAttrsFromContext } from '../otel/environment-context';
 import { getPromptSpanAttrsFromContext } from '../otel/prompt-context';
 import { OtelSingleton } from '../otel/singleton';
 import {
@@ -88,6 +89,7 @@ export function wrap<TFun extends (...args: any[]) => any>(
         const contextAttributes = {
           ...getUserSpanAttrsFromContext(context.active()),
           ...getStatsigSpanAttrsFromContext(context.active()),
+          ...getEnvironmentSpanAttrsFromContext(context.active()),
           ...getPromptAttrs(),
         };
         telemetry.setAttributes(contextAttributes);

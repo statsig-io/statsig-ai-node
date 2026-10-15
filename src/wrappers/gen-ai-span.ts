@@ -12,6 +12,7 @@ import {
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigSpanType,
 } from '../otel/conventions';
+import { getEnvironmentSpanAttrsFromContext } from '../otel/environment-context';
 import { getPromptSpanAttrsFromContext } from '../otel/prompt-context';
 import {
   createResourceAttributes,
@@ -62,6 +63,7 @@ export function startGenAISpan(
   if (maybeStatsigContextAttrs) {
     Object.assign(statsigAttrs, maybeStatsigContextAttrs);
   }
+  Object.assign(statsigAttrs, getEnvironmentSpanAttrsFromContext(ctx));
 
   const attributes: Record<string, AttributeValue | undefined> = {
     ...(customAttributes ?? {}),

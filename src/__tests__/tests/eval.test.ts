@@ -1,4 +1,14 @@
+import { context as otelContext } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { Eval, EvalResultRecord, EvalResult } from '../../evals/Eval';
+import { STATSIG_ATTR_ENVIRONMENT } from '../../otel/conventions';
+import { OtelSingleton } from '../../otel/singleton';
+import { wrap } from '../../wrappers/wrap-call';
 import { EvalHooks } from '../../evals/EvalHooks';
 import { EvalParameters } from '../../evals/EvalParameters';
 import { ScorerFunctionArgs, ScoreWithMetadata } from '../../evals/EvalScorer';
@@ -32,6 +42,51 @@ describe('Eval', () => {
     process.env.STATSIG_API_KEY = ORIGINAL_API_KEY;
     (global as any).fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  test('tags spans from tasks and scorers with statsig.environment=eval', async () => {
+    const contextManager = new AsyncLocalStorageContextManager().enable();
+    otelContext.setGlobalContextManager(contextManager);
+    const exporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    OtelSingleton.__reset();
+    OtelSingleton.instantiate({ tracerProvider: provider });
+
+    try {
+      await Eval('environment task', {
+        data: [{ input: 'Foo' }],
+        task: wrap(
+          { type: 'tool', name: 'task-tool' },
+          async (input: string) => {
+            await Promise.resolve();
+            return input;
+          },
+        ),
+        scorer: wrap({ type: 'tool', name: 'scorer-tool' }, () => 1),
+      });
+      wrap({ type: 'tool', name: 'outside-tool' }, () => 'done')();
+
+      const environmentByTool = Object.fromEntries(
+        exporter
+          .getFinishedSpans()
+          .map((span) => [
+            span.attributes['statsig.gen_ai.tool.name'],
+            span.attributes[STATSIG_ATTR_ENVIRONMENT],
+          ]),
+      );
+      expect(environmentByTool).toEqual({
+        'task-tool': 'eval',
+        'scorer-tool': 'eval',
+        'outside-tool': undefined,
+      });
+    } finally {
+      await provider.shutdown();
+      OtelSingleton.__reset();
+      otelContext.disable();
+      contextManager.disable();
+    }
   });
 
   test('evaluates data and sends results to Statsig', async () => {

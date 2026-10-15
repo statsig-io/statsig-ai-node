@@ -1,3 +1,4 @@
+import { withStatsigEnvironment } from '../otel/environment-context';
 import {
   EvalParameters,
   InferParameters,
@@ -231,10 +232,12 @@ export async function Eval<
       let error = false;
 
       try {
-        output = await task(record.input, {
-          parameters: parsedParameters,
-          category: record.category ?? '',
-        });
+        output = await withStatsigEnvironment('eval', () =>
+          task(record.input, {
+            parameters: parsedParameters,
+            category: record.category ?? '',
+          }),
+        );
 
         const scorerArgs: ScorerFunctionArgs<Input, Output, Expected> = {
           ...record,
@@ -244,7 +247,9 @@ export async function Eval<
         const scorerEntries = Object.entries(normalizedScorers);
         const scoreResults = await Promise.all(
           scorerEntries.map(([scorerName, scorerFn]) =>
-            runScorer(scorerName, scorerFn, scorerArgs),
+            withStatsigEnvironment('eval', () =>
+              runScorer(scorerName, scorerFn, scorerArgs),
+            ),
           ),
         );
 

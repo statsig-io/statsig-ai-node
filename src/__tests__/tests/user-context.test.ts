@@ -19,8 +19,11 @@ import {
 import { StatsigSpanProcessor } from '../../otel/processor';
 import {
   STATSIG_ATTR_CUSTOM_IDS,
+  STATSIG_ATTR_ENVIRONMENT,
   STATSIG_ATTR_USER_ID,
 } from '../../otel/conventions';
+import { withStatsigEnvironment } from '../../otel/environment-context';
+import { withStatsigContext } from '../../otel/statsig-context';
 
 describe('withStatsigUserContext', () => {
   let contextManager: AsyncLocalStorageContextManager;
@@ -144,5 +147,30 @@ describe('StatsigSpanProcessor', () => {
 
     expect(recorded?.attributes[STATSIG_ATTR_USER_ID]).toBeUndefined();
     expect(recorded?.attributes[STATSIG_ATTR_CUSTOM_IDS]).toBeUndefined();
+    expect(recorded?.attributes[STATSIG_ATTR_ENVIRONMENT]).toBeUndefined();
+  });
+
+  it('tags spans started inside withStatsigEnvironment', async () => {
+    const tracer = provider.getTracer('statsig-test-environment');
+    withStatsigEnvironment('eval', () => {
+      tracer.startSpan('eval-span').end();
+      withStatsigContext({ activityID: 'activity' }, () => {
+        tracer.startSpan('nested-context-span').end();
+      });
+    });
+    tracer.startSpan('outside-span').end();
+
+    await processor.forceFlush();
+
+    const environmentBySpan = Object.fromEntries(
+      exporter
+        .getFinishedSpans()
+        .map((span) => [span.name, span.attributes[STATSIG_ATTR_ENVIRONMENT]]),
+    );
+    expect(environmentBySpan).toEqual({
+      'eval-span': 'eval',
+      'nested-context-span': 'eval',
+      'outside-span': undefined,
+    });
   });
 });
