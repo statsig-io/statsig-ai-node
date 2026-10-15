@@ -1,6 +1,6 @@
 {
   "name": "@statsig/statsig-ai",
-  "version": "0.0.1-beta.31",
+  "version": "0.0.1-beta.32",
   "main": "./dist/index.js",
   "files": [
     "dist/",
