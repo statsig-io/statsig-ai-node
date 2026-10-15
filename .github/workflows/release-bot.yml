@@ -16,6 +16,29 @@ jobs:
       id-token: write
     steps:
       - uses: statsig-io/statsig-publish-sdk-action@main
+        if: github.event_name == 'pull_request'
         with:
           kong-private-key: ${{ secrets.KONG_GH_APP_PRIVATE_KEY }}
-          npm-token: ${{ secrets.NPM_AUTOMATION_KEY }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: github.event_name == 'release'
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: github.event_name == 'release'
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11.5.1
+        if: github.event_name == 'release'
+      - run: npm install
+        if: github.event_name == 'release'
+      - name: Publish to npm
+        if: github.event_name == 'release'
+        env:
+          IS_STABLE: ${{ contains(github.event.release.name, '[stable]') }}
+        run: |
+          if [[ "$IS_STABLE" == 'true' ]]; then
+            npm publish --tag stable --provenance
+          else
+            npm publish --provenance
+          fi
