@@ -42,7 +42,10 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "repository": "https://github.com/statsig-io/statsig-ai-node.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statsig-io/statsig-ai-node.git"
+  },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.62.0",
