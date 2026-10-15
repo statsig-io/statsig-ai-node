@@ -1,3 +1,4 @@
+import { isSpanContextValid, trace } from '@opentelemetry/api';
 import {
   Statsig as StatsigStd,
   StatsigOptions as StatsigOptionsStd,
@@ -152,7 +153,7 @@ export class StatsigAIInstance<T extends StatsigSelector = STD> {
     graderName: string,
     evalData: AIEvalGradeData,
   ): void {
-    const { sessionId, activityId } = evalData;
+    const { sessionId, activityId, reasoning } = evalData;
     if (score < 0 || score > 1) {
       console.warn(
         `[Statsig] AI eval result score is out of bounds: ${score} is not between 0 and 1, skipping log event`,
@@ -165,6 +166,14 @@ export class StatsigAIInstance<T extends StatsigSelector = STD> {
         ...user.customIDs,
         [STATSIG_ATTR_ACTIVITY_ID]: activityId,
       };
+    }
+
+    let { traceId, spanId } = evalData;
+    if (!traceId && !spanId) {
+      const spanContext = trace.getActiveSpan()?.spanContext();
+      if (spanContext && isSpanContextValid(spanContext)) {
+        ({ traceId, spanId } = spanContext);
+      }
     }
 
     Statsig.logEvent(
@@ -180,6 +189,10 @@ export class StatsigAIInstance<T extends StatsigSelector = STD> {
         grader_name: graderName,
         ai_config_name: promptVersion.getPromptName(),
         is_live: promptVersion.isLiveForUser.toString(),
+        source: 'sdk',
+        ...(traceId ? { trace_id: traceId } : {}),
+        ...(spanId ? { span_id: spanId } : {}),
+        ...(reasoning ? { reasoning } : {}),
         ...(evalData.metadata ? evalData.metadata : {}),
       },
     );
