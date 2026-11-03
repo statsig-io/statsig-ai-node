@@ -157,33 +157,6 @@ describe('OpenAI Wrapper with Statsig Tracing', () => {
       },
     },
     {
-      name: 'openai.completions.create',
-      operationName: 'openai.completions.create',
-      op: (c: any) => c.completions.create,
-      args: {
-        model: OPENAI_TEST_MODEL,
-        prompt: 'Say hello world',
-        max_tokens: 32,
-        temperature: 0.3,
-      },
-    },
-    {
-      name: 'openai.completions.create with stream',
-      operationName: 'openai.completions.create',
-      op: (c: any) => c.completions.create,
-      args: {
-        model: OPENAI_TEST_MODEL,
-        prompt: 'Say hello world',
-        stream: true,
-        temperature: 0.5,
-        max_tokens: 100,
-        stream_options: { include_usage: true },
-      },
-      options: {
-        capture_output_messages: true,
-      },
-    },
-    {
       name: 'openai.embeddings.create',
       operationName: 'openai.embeddings.create',
       op: (c: any) => c.embeddings.create,

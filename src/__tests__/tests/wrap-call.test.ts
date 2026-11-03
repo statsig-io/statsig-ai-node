@@ -23,6 +23,7 @@ import {
 import { OtelSingleton } from '../../otel/singleton';
 import { Prompt } from '../../prompts/Prompt';
 import { PromptVersion } from '../../prompts/PromptVersion';
+import { wrapOpenAI } from '../../wrappers/openai';
 import { startWorkflow, wrap } from '../../wrappers/wrap-call';
 import { MockScrapi } from '../shared/MockScrapi';
 import { getDCSFilePath } from '../shared/utils';
@@ -227,6 +228,50 @@ describe('wrap-call', () => {
       'outer-workflow',
     );
     expect(event.metadata['env.stage']).toBe('staging');
+  });
+
+  it('marks only LLM calls made outside a workflow as the LLM root', async () => {
+    const client = wrapOpenAI({
+      chat: { completions: { create: jest.fn() } },
+      completions: { create: jest.fn() },
+      embeddings: { create: jest.fn() },
+      images: { generate: jest.fn() },
+      moderations: {},
+      responses: {
+        create: jest.fn(async (params: { model: string }) => ({
+          id: 'resp_1',
+          model: params.model,
+          status: 'completed',
+          output: [],
+        })),
+      },
+    });
+    const ask = (model: string) => client.responses.create({ model });
+
+    await ask('standalone');
+    await wrap({ type: 'workflow', name: 'agent-turn' }, async () => {
+      await ask('first-round');
+      await wrap({ type: 'tool', name: 'lookup' }, () => ask('in-tool'))();
+      await ask('final-round');
+    })();
+
+    await provider.forceFlush();
+    const llmRootBySpan = Object.fromEntries(
+      exporter
+        .getFinishedSpans()
+        .map((span) => [
+          span.name,
+          span.attributes[STATSIG_ATTR_SPAN_LLM_ROOT],
+        ]),
+    );
+    expect(llmRootBySpan).toStrictEqual({
+      'generate_content standalone': STATSIG_SPAN_LLM_ROOT_VALUE,
+      'generate_content first-round': undefined,
+      'generate_content in-tool': undefined,
+      'generate_content final-round': undefined,
+      execute_tool: undefined,
+      invoke_workflow: undefined,
+    });
   });
 
   it('tags workflow spans with the active version and the variables rendered inside them', async () => {

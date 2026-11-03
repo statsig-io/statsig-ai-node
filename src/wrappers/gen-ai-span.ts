@@ -9,6 +9,7 @@ import {
 import {
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
+  STATSIG_CTX_KEY_LLM_ROOT,
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigSpanType,
 } from '../otel/conventions';
@@ -23,8 +24,6 @@ import { getStatsigSpanAttrsFromContext } from '../otel/statsig-context';
 import { GenAICaptureOptions } from './openai-configs';
 import { SpanTelemetry, TelemetryStream } from './span-telemetry';
 
-const STATSIG_SPAN_LLM_ROOT_CTX_VAL = Symbol('STATSIG_SPAN_LLM_ROOT_CTX_VAL');
-
 // Starts a client span for one model call, tagged with the active Statsig
 // prompt, prompt version and context so it can be graded and attributed.
 // Template variables usually hold user input, so they follow the same capture
@@ -38,7 +37,7 @@ export function startGenAISpan(
   captureOptions: GenAICaptureOptions,
 ): SpanTelemetry {
   let ctx = context.active();
-  const maybeRootSpan = ctx.getValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL);
+  const maybeRootSpan = ctx.getValue(STATSIG_CTX_KEY_LLM_ROOT);
   const statsigAttrs: Record<string, AttributeValue> = {
     [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
   };
@@ -46,7 +45,7 @@ export function startGenAISpan(
     typeof maybeRootSpan === 'undefined' ||
     (typeof maybeRootSpan === 'string' && maybeRootSpan.length === 0)
   ) {
-    ctx = ctx.setValue(STATSIG_SPAN_LLM_ROOT_CTX_VAL, spanName);
+    ctx = ctx.setValue(STATSIG_CTX_KEY_LLM_ROOT, spanName);
     statsigAttrs[STATSIG_ATTR_SPAN_LLM_ROOT] = STATSIG_SPAN_LLM_ROOT_VALUE;
   }
 

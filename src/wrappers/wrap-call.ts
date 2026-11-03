@@ -10,6 +10,7 @@ import {
   STATSIG_ATTR_GEN_AI_SPAN_TYPE,
   STATSIG_ATTR_SPAN_LLM_ROOT,
   STATSIG_ATTR_SPAN_TYPE,
+  STATSIG_CTX_KEY_LLM_ROOT,
   STATSIG_SPAN_LLM_ROOT_VALUE,
   StatsigGenAISpanType,
   StatsigSpanType,
@@ -65,6 +66,11 @@ export function wrap<TFun extends (...args: any[]) => any>(
         user: input.user,
         activityID: input.activityID,
       });
+    }
+    // The workflow span stands for the whole turn, so the LLM calls it makes
+    // aren't marked `statsig.span.llm_root`.
+    if (input.type === 'workflow') {
+      ctx = ctx.setValue(STATSIG_CTX_KEY_LLM_ROOT, opName);
     }
 
     const result = tracer.startActiveSpan(opName, {}, ctx, (span) => {

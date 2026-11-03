@@ -20,7 +20,7 @@ import { StatsigSpanProcessor } from '../../otel/processor';
 import { wrapOpenAI } from '../../wrappers/openai';
 import OpenAI from 'openai';
 
-const TEST_MODEL = 'gpt-4.1-nano';
+const TEST_MODEL = 'gpt-4.1';
 describe('Span metadata propagation', () => {
   let contextManager: AsyncLocalStorageContextManager;
   let exporter: InMemorySpanExporter;
