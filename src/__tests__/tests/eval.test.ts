@@ -1,13 +1,25 @@
-import { context as otelContext } from '@opentelemetry/api';
+import { context as otelContext, SpanStatusCode } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
   BasicTracerProvider,
+  BatchSpanProcessor,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { Eval, EvalResultRecord, EvalResult } from '../../evals/Eval';
-import { STATSIG_ATTR_ENVIRONMENT } from '../../otel/conventions';
+import {
+  STATSIG_ATTR_ENVIRONMENT,
+  STATSIG_ATTR_EVAL_NAME,
+  STATSIG_ATTR_EVAL_RECORD_INDEX,
+  STATSIG_ATTR_EVAL_RUN_NAME,
+  STATSIG_ATTR_EVAL_SCORER_NAME,
+  STATSIG_ATTR_GEN_AI_SPAN_TYPE,
+  STATSIG_ATTR_SPAN_TYPE,
+  StatsigGenAISpanType,
+  StatsigSpanType,
+} from '../../otel/conventions';
 import { OtelSingleton } from '../../otel/singleton';
+import { wrapOpenAI } from '../../wrappers/openai';
 import { wrap } from '../../wrappers/wrap-call';
 import { EvalHooks } from '../../evals/EvalHooks';
 import { EvalParameters } from '../../evals/EvalParameters';
@@ -71,6 +83,7 @@ describe('Eval', () => {
       const environmentByTool = Object.fromEntries(
         exporter
           .getFinishedSpans()
+          .filter((span) => span.attributes['statsig.gen_ai.tool.name'])
           .map((span) => [
             span.attributes['statsig.gen_ai.tool.name'],
             span.attributes[STATSIG_ATTR_ENVIRONMENT],
@@ -87,6 +100,161 @@ describe('Eval', () => {
       otelContext.disable();
       contextManager.disable();
     }
+  });
+
+  describe('record traces', () => {
+    let contextManager: AsyncLocalStorageContextManager;
+    let exporter: InMemorySpanExporter;
+    let provider: BasicTracerProvider;
+
+    beforeEach(() => {
+      contextManager = new AsyncLocalStorageContextManager().enable();
+      otelContext.setGlobalContextManager(contextManager);
+      exporter = new InMemorySpanExporter();
+      // Exports only on flush, so finished spans show that Eval() flushed.
+      provider = new BasicTracerProvider({
+        spanProcessors: [
+          new BatchSpanProcessor(exporter, { scheduledDelayMillis: 60_000 }),
+        ],
+      });
+      OtelSingleton.__reset();
+      OtelSingleton.instantiate({ tracerProvider: provider });
+    });
+
+    afterEach(async () => {
+      await provider.shutdown();
+      OtelSingleton.__reset();
+      otelContext.disable();
+      contextManager.disable();
+    });
+
+    test('gives each record its own trace with its LLM calls under the record span', async () => {
+      const openai = wrapOpenAI({
+        chat: {
+          completions: {
+            create: jest.fn(
+              async (params: {
+                model: string;
+                messages: { role: string; content: string }[];
+              }) => ({
+                id: 'chatcmpl_1',
+                model: params.model,
+                choices: [
+                  {
+                    index: 0,
+                    message: {
+                      role: 'assistant',
+                      content: 'Hello ' + params.messages[0].content,
+                    },
+                    finish_reason: 'stop',
+                  },
+                ],
+              }),
+            ),
+          },
+        },
+        completions: { create: jest.fn() },
+        embeddings: { create: jest.fn() },
+        images: { generate: jest.fn() },
+        moderations: {},
+        responses: { create: jest.fn() },
+      });
+
+      let outerTraceID = '';
+      const { results } = await provider
+        .getTracer('test')
+        .startActiveSpan('outer', async (outer) => {
+          outerTraceID = outer.spanContext().traceId;
+          try {
+            return await Eval('greeting', {
+              data: [{ input: 'Foo' }, { input: 'Bar' }, { input: 'Baz' }],
+              task: async (input: string) => {
+                const completion = await openai.chat.completions.create({
+                  model: 'gpt-test',
+                  messages: [{ role: 'user', content: input }],
+                });
+                return completion.choices[0].message.content;
+              },
+              scorer: ({ output }) => output === 'Hello Foo',
+              evalRunName: 'run-traces',
+            });
+          } finally {
+            outer.end();
+          }
+        });
+
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(9);
+
+      const traceIDs = new Set(results.map((result) => result.traceID));
+      expect(traceIDs.size).toBe(3);
+      expect(traceIDs.has(outerTraceID)).toBe(false);
+
+      const [, req] = fetchMock.mock.calls[0];
+      const body = JSON.parse(req?.body as string);
+
+      results.forEach((result, index) => {
+        expect(body.results[index]).toMatchObject({
+          input: result.input,
+          traceID: result.traceID,
+          spanID: result.spanID,
+        });
+
+        const recordSpan = spans.find(
+          (span) => span.spanContext().spanId === result.spanID,
+        );
+        expect(recordSpan?.spanContext().traceId).toBe(result.traceID);
+        expect(recordSpan?.parentSpanContext).toBeUndefined();
+        expect(recordSpan?.attributes).toMatchObject({
+          [STATSIG_ATTR_SPAN_TYPE]: StatsigSpanType.gen_ai,
+          [STATSIG_ATTR_GEN_AI_SPAN_TYPE]: StatsigGenAISpanType.workflow,
+          [STATSIG_ATTR_ENVIRONMENT]: 'eval',
+          [STATSIG_ATTR_EVAL_NAME]: 'greeting',
+          [STATSIG_ATTR_EVAL_RUN_NAME]: 'run-traces',
+          [STATSIG_ATTR_EVAL_RECORD_INDEX]: index,
+        });
+
+        const children = spans.filter(
+          (span) => span.parentSpanContext?.spanId === result.spanID,
+        );
+        expect(
+          children.map((span) => [
+            span.name,
+            span.attributes[STATSIG_ATTR_EVAL_SCORER_NAME],
+          ]),
+        ).toEqual(
+          expect.arrayContaining([
+            ['chat gpt-test', undefined],
+            ['invoke_workflow', 'Grader'],
+          ]),
+        );
+        expect(children).toHaveLength(2);
+      });
+    });
+
+    test('marks the record span as failed when the task throws', async () => {
+      const { results } = await Eval('failing', {
+        data: [{ input: 'Boom' }],
+        task: (): string => {
+          throw new Error('Task failed');
+        },
+        scorer: () => 1,
+      });
+
+      const [result] = results;
+      expect(result).toMatchObject({
+        error: true,
+        traceID: expect.any(String),
+        spanID: expect.any(String),
+      });
+      const recordSpan = exporter
+        .getFinishedSpans()
+        .find((span) => span.spanContext().spanId === result.spanID);
+      expect(recordSpan?.status).toEqual({
+        code: SpanStatusCode.ERROR,
+        message: 'Task failed',
+      });
+    });
   });
 
   test('evaluates data and sends results to Statsig', async () => {
@@ -140,6 +308,9 @@ describe('Eval', () => {
     expect(Array.isArray(body.results)).toBe(true);
     expect(body.results[0].scores).toEqual({ Grader: { score: 0 } });
     expect(body.results[1].scores).toEqual({ Grader: { score: 1 } });
+    // Tracing isn't initialized, so records have no trace.
+    expect(body.results[0]).not.toHaveProperty('traceID');
+    expect(body.results[0]).not.toHaveProperty('spanID');
   });
 
   test('marks record as error when task throws and still sends', async () => {
@@ -775,6 +946,69 @@ describe('Eval', () => {
     expect(body.results[0].scores.Grader.metadata).toEqual({
       reason: 'test metadata',
     });
+  });
+
+  test('sends non-string scorer metadata as strings', async () => {
+    await Eval('test task', {
+      data: [{ input: 'Foo' }],
+      task: (input: string) => 'Hello ' + input,
+      scorer: () => ({
+        score: 1,
+        metadata: {
+          reasoning: 'Greets Foo by name',
+          confidence: 0.9,
+          tags: ['greeting'],
+        },
+      }),
+    });
+
+    const [, req] = fetchMock.mock.calls[0];
+    const body = JSON.parse(req?.body as string);
+    expect(body.results[0].scores.Grader.metadata).toEqual({
+      reasoning: 'Greets Foo by name',
+      confidence: '0.9',
+      tags: '["greeting"]',
+    });
+  });
+
+  test('sends non-string input, output and expected values as JSON strings', async () => {
+    const { results } = await Eval<
+      { question: string },
+      { answer: string },
+      { answer: string }
+    >('test task', {
+      data: [{ input: { question: 'Hi?' }, expected: { answer: 'Hello' } }],
+      task: () => ({ answer: 'Hello' }),
+      scorer: ({ output, expected }) => output.answer === expected.answer,
+    });
+
+    expect(results[0]).toMatchObject({
+      input: { question: 'Hi?' },
+      expected: { answer: 'Hello' },
+      output: { answer: 'Hello' },
+      scores: { Grader: 1 },
+    });
+
+    const [, req] = fetchMock.mock.calls[0];
+    const body = JSON.parse(req?.body as string);
+    expect(body.results[0]).toMatchObject({
+      input: '{"question":"Hi?"}',
+      expected: '{"answer":"Hello"}',
+      output: '{"answer":"Hello"}',
+    });
+  });
+
+  test('sends an empty output when the task returns nothing', async () => {
+    await Eval('test task', {
+      data: [{ input: 'Foo' }],
+      task: () => undefined,
+      scorer: () => 1,
+    });
+
+    const [, req] = fetchMock.mock.calls[0];
+    const body = JSON.parse(req?.body as string);
+    expect(body.results[0]).toMatchObject({ input: 'Foo', output: '' });
+    expect(body.results[0]).not.toHaveProperty('expected');
   });
 
   test('handles scorer returning dict without metadata key', async () => {

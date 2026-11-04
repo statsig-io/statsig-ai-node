@@ -78,6 +78,10 @@ initializeTracing({ environment: 'production' });
 await withStatsigEnvironment('staging_canary', () => handleRequest(req));
 ```
 
+### Tracing evals
+
+When tracing is initialized, `Eval()` gives each record its own trace. The root span is a `workflow` span marked `statsig.environment=eval`, with `statsig.eval.name`, `statsig.eval.run_name` and `statsig.eval.record_index`. LLM calls the task makes through `wrapOpenAI`, `wrapAnthropic` or `wrapGemini` are its children, and each scorer runs in its own child span. Each result's `traceID` and `spanID` are sent to Statsig with the scores, and `Eval()` flushes the spans before it returns.
+
 ### Joining a Statsig eval trace
 
 A workflow eval sends each dataset row to your endpoint as a POST request. To show your agent's tool and model calls under the eval row in the trace drawer, run the handler inside `withIncomingTraceContext`. It reads the W3C `traceparent` and `tracestate` request headers, so wrapped model calls and `wrap` spans become children of the eval row's span. It accepts Node request headers (`req.headers`) or a Fetch `Headers` object. If there's no valid `traceparent`, the handler runs as usual.

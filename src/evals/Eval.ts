@@ -1,4 +1,18 @@
+import {
+  AttributeValue,
+  context,
+  isSpanContextValid,
+  trace,
+} from '@opentelemetry/api';
+import {
+  STATSIG_ATTR_EVAL_NAME,
+  STATSIG_ATTR_EVAL_RECORD_INDEX,
+  STATSIG_ATTR_EVAL_RUN_NAME,
+  STATSIG_ATTR_EVAL_SCORER_NAME,
+} from '../otel/conventions';
 import { withStatsigEnvironment } from '../otel/environment-context';
+import { OtelSingleton } from '../otel/singleton';
+import { startWorkflow, wrap } from '../wrappers/wrap-call';
 import {
   EvalParameters,
   InferParameters,
@@ -56,7 +70,13 @@ interface ScoreWithMetadataInternal {
   metadata?: Record<string, unknown>;
 }
 
-interface EvalResultRecordBase<Input, Output> {
+interface RecordTraceIDs {
+  /** Trace and root span of the record's run. Set when tracing is initialized. */
+  traceID?: string;
+  spanID?: string;
+}
+
+interface EvalResultRecordBase<Input, Output> extends RecordTraceIDs {
   input: Input;
   output: Output;
   category?: string[] | string;
@@ -195,6 +215,39 @@ function runSummaryScorer<Input, Output, Expected>(
   }
 }
 
+/**
+ * Runs `fn` in a new root workflow span, so every record gets its own trace
+ * even when Eval() is called inside another span.
+ */
+function startRecordTrace<R>(
+  name: string,
+  attributes: Record<string, AttributeValue>,
+  fn: (ids: RecordTraceIDs) => R,
+): R {
+  return context.with(trace.deleteSpan(context.active()), () =>
+    startWorkflow({ name, attributes }, () => fn(getActiveSpanIDs())),
+  );
+}
+
+function startScorerSpan<R>(scorerName: string, fn: () => R): R {
+  return wrap(
+    {
+      type: 'workflow',
+      name: scorerName,
+      attributes: { [STATSIG_ATTR_EVAL_SCORER_NAME]: scorerName },
+    },
+    fn,
+  )();
+}
+
+function getActiveSpanIDs(): RecordTraceIDs {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  if (!spanContext || !isSpanContextValid(spanContext)) {
+    return {};
+  }
+  return { traceID: spanContext.traceId, spanID: spanContext.spanId };
+}
+
 export async function Eval<
   Input,
   Output,
@@ -220,42 +273,63 @@ export async function Eval<
     : ({} as InferParameters<Parameters>);
 
   const normalizedScorers = normalizeScorer(scorer);
+  const scorerEntries = Object.entries(normalizedScorers);
+  // Without initializeTracing() there is no exporter, so records aren't traced.
+  const traceRecords = OtelSingleton.isInitialized();
 
   const resultsWithMetadata: EvalResultRecordWithMetadata<
     Input,
     Output,
     Expected
   >[] = await Promise.all(
-    normalizedData.map(async (record) => {
+    normalizedData.map(async (record, recordIndex) => {
       let output: Output | undefined;
       let scores: Record<string, ScoreWithMetadataInternal> = {};
       let error = false;
+      let traceIDs: RecordTraceIDs = {};
 
-      try {
-        output = await withStatsigEnvironment('eval', () =>
-          task(record.input, {
-            parameters: parsedParameters,
-            category: record.category ?? '',
-          }),
-        );
+      const runTaskAndScorers = async () => {
+        output = await task(record.input, {
+          parameters: parsedParameters,
+          category: record.category ?? '',
+        });
 
         const scorerArgs: ScorerFunctionArgs<Input, Output, Expected> = {
           ...record,
           output: output as Output,
         };
 
-        const scorerEntries = Object.entries(normalizedScorers);
         const scoreResults = await Promise.all(
-          scorerEntries.map(([scorerName, scorerFn]) =>
-            withStatsigEnvironment('eval', () =>
-              runScorer(scorerName, scorerFn, scorerArgs),
-            ),
-          ),
+          scorerEntries.map(([scorerName, scorerFn]) => {
+            const score = () => runScorer(scorerName, scorerFn, scorerArgs);
+            return traceRecords ? startScorerSpan(scorerName, score) : score();
+          }),
         );
 
         scorerEntries.forEach(([scorerName], index) => {
           scores[scorerName] = scoreResults[index];
         });
+      };
+
+      try {
+        await withStatsigEnvironment('eval', () =>
+          traceRecords
+            ? startRecordTrace(
+                name,
+                {
+                  [STATSIG_ATTR_EVAL_NAME]: name,
+                  [STATSIG_ATTR_EVAL_RECORD_INDEX]: recordIndex,
+                  ...(evalRunName !== undefined
+                    ? { [STATSIG_ATTR_EVAL_RUN_NAME]: evalRunName }
+                    : {}),
+                },
+                (ids) => {
+                  traceIDs = ids;
+                  return runTaskAndScorers();
+                },
+              )
+            : runTaskAndScorers(),
+        );
       } catch (err) {
         console.warn('[Statsig] Eval failed:', record.input, err);
         if (output === undefined) {
@@ -269,6 +343,7 @@ export async function Eval<
 
       return {
         ...record,
+        ...traceIDs,
         output,
         scores,
         error,
@@ -278,6 +353,14 @@ export async function Eval<
 
   const results = convertToNumScores(resultsWithMetadata);
   const computedSummaryScores = runSummaryScorer(summaryScoresFn, results);
+
+  if (traceRecords) {
+    // Export the record spans before returning, so they aren't lost if the
+    // process exits right after the eval.
+    await OtelSingleton.flushInstance().catch((err) =>
+      console.warn('[Statsig] Failed to flush eval spans:', err),
+    );
+  }
 
   await sendEvalResults(
     name,
@@ -325,8 +408,8 @@ async function normalizeEvalData<Input, Expected>(
   throw new Error('[Statsig] Invalid type provided to data parameter.');
 }
 
-interface EvalResultsPayload<Input, Output, Expected> {
-  results: EvalResultRecordWithMetadata<Input, Output, Expected>[];
+interface EvalResultsPayload {
+  results: EvalResultRecordWithMetadata<string, string, string>[];
   name?: string;
   summaryScores?: Record<string, number>;
   parameters?: Record<string, string>;
@@ -381,6 +464,59 @@ function serializeParameters<Parameters extends EvalParameters>(
   return serialized;
 }
 
+/**
+ * Serializes a record for the API payload. The API only accepts strings for
+ * the input, output, expected value and score metadata values, so other
+ * values (such as an object input or a numeric confidence) are JSON
+ * stringified.
+ */
+function serializeRecord<Input, Output, Expected>(
+  record: EvalResultRecordWithMetadata<Input, Output, Expected>,
+): EvalResultRecordWithMetadata<string, string, string> {
+  return {
+    ...record,
+    input: stringifyPayloadValue(record.input) ?? '',
+    output: stringifyPayloadValue(record.output) ?? '',
+    expected:
+      record.expected === undefined
+        ? undefined
+        : stringifyPayloadValue(record.expected),
+    scores: serializeScores(record.scores),
+  };
+}
+
+function serializeScores(
+  scores: Record<string, ScoreWithMetadataInternal>,
+): Record<string, ScoreWithMetadataInternal> {
+  return Object.fromEntries(
+    Object.entries(scores).map(([scorerName, { score, metadata }]) => [
+      scorerName,
+      {
+        score,
+        metadata:
+          metadata &&
+          Object.fromEntries(
+            Object.entries(metadata).map(([key, value]) => [
+              key,
+              stringifyPayloadValue(value),
+            ]),
+          ),
+      },
+    ]),
+  );
+}
+
+function stringifyPayloadValue(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 async function sendEvalResults<
   Input,
   Output,
@@ -406,8 +542,8 @@ async function sendEvalResults<
 
     const serializedParameters = serializeParameters(parameters);
 
-    const requestBody: EvalResultsPayload<Input, Output, Expected> = {
-      results: records,
+    const requestBody: EvalResultsPayload = {
+      results: records.map(serializeRecord),
       ...(evalRunName !== undefined && { name: evalRunName }),
       ...(computedSummaryScores !== undefined && {
         summaryScores: computedSummaryScores,

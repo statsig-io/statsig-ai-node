@@ -26,6 +26,10 @@ export const STATSIG_ATTR_ACTIVITY_ID = 'statsig.activity_id';
 export const STATSIG_ATTR_ENVIRONMENT = 'statsig.environment';
 // Incubating in @opentelemetry/semantic-conventions, which recommends copying it.
 export const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = 'deployment.environment.name';
+export const STATSIG_ATTR_EVAL_NAME = 'statsig.eval.name';
+export const STATSIG_ATTR_EVAL_RUN_NAME = 'statsig.eval.run_name';
+export const STATSIG_ATTR_EVAL_RECORD_INDEX = 'statsig.eval.record_index';
+export const STATSIG_ATTR_EVAL_SCORER_NAME = 'statsig.eval.scorer_name';
 
 export const STATSIG_CTX_KEY_ACTIVE_PROMPT = Symbol(
   'STATSIG_CTX_KEY_ACTIVE_PROMPT',
