@@ -6,3 +6,7 @@ export {
   withStatsigEnvironment,
   type StatsigEnvironment,
 } from './environment-context';
+export {
+  withIncomingTraceContext,
+  type IncomingHeaders,
+} from './incoming-trace-context';

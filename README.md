@@ -78,6 +78,32 @@ initializeTracing({ environment: 'production' });
 await withStatsigEnvironment('staging_canary', () => handleRequest(req));
 ```
 
+### Joining a Statsig eval trace
+
+A workflow eval sends each dataset row to your endpoint as a POST request. To show your agent's tool and model calls under the eval row in the trace drawer, run the handler inside `withIncomingTraceContext`. It reads the W3C `traceparent` and `tracestate` request headers, so wrapped model calls and `wrap` spans become children of the eval row's span. It accepts Node request headers (`req.headers`) or a Fetch `Headers` object. If there's no valid `traceparent`, the handler runs as usual.
+
+```ts
+import { withIncomingTraceContext } from '@statsig/statsig-ai';
+
+// Node / Express
+app.post('/agent', (req, res) =>
+  withIncomingTraceContext(req.headers, async () => {
+    res.json({ output: await runAgent(req.body) });
+  }),
+);
+
+// Fetch-style handlers (Next.js route handlers, Hono, ...)
+export async function POST(request: Request) {
+  return withIncomingTraceContext(request.headers, async () =>
+    Response.json({ output: await runAgent(await request.json()) }),
+  );
+}
+```
+
+If your server already uses OpenTelemetry HTTP instrumentation, its spans join the trace on their own. The helper keeps the active span when it's already in the incoming trace, so using both is safe.
+
+What Statsig sends today: workflow eval requests carry `Content-Type: application/json` and the headers you configured for the workflow. They don't carry `traceparent` yet. Until they do, `withIncomingTraceContext` leaves your handler unchanged. Statsig also doesn't send a header that marks a request as an eval or shadow run. To tell eval requests apart, for example to skip side effects or to tag their spans with `withStatsigEnvironment('eval', ...)`, add your own header to the workflow's headers and check for it in your handler.
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

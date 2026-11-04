@@ -18,6 +18,10 @@ export {
   withStatsigEnvironment,
   StatsigEnvironment,
 } from './otel/environment-context';
+export {
+  withIncomingTraceContext,
+  IncomingHeaders,
+} from './otel/incoming-trace-context';
 export { Eval, EvalResultRecord, EvalResult } from './evals/Eval';
 export {
   Score,
