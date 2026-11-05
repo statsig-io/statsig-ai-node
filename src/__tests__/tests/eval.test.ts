@@ -7,6 +7,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { Eval, EvalResultRecord, EvalResult } from '../../evals/Eval';
+import { statsigDataset } from '../../evals/StatsigDataset';
 import {
   STATSIG_ATTR_ENVIRONMENT,
   STATSIG_ATTR_EVAL_NAME,
@@ -305,6 +306,7 @@ describe('Eval', () => {
 
     const body = JSON.parse(req?.body as string);
     expect(body.name).toBe('run-123');
+    expect(body).not.toHaveProperty('dataset');
     expect(Array.isArray(body.results)).toBe(true);
     expect(body.results[0].scores).toEqual({ Grader: { score: 0 } });
     expect(body.results[1].scores).toEqual({ Grader: { score: 1 } });
@@ -1345,5 +1347,109 @@ describe('Eval', () => {
     });
     expect(body.results[0].scores).toEqual({ correctness: { score: 1 } });
     expect(body.results[1].scores).toEqual({ correctness: { score: 1 } });
+  });
+
+  describe('on a Statsig dataset', () => {
+    const jsonResponse = (body: unknown, status = 200) => ({
+      ok: status < 300,
+      status,
+      statusText: status < 300 ? 'OK' : 'Not Found',
+      json: async () => body,
+    });
+    const datasetRow = (index: number) => ({
+      rowID: `row-${index}`,
+      columns: [
+        { name: 'question', value: `q${index}` },
+        { name: 'answer', value: `a${index}` },
+      ],
+      groups: ['math'],
+    });
+
+    test('loads every page of rows and posts the dataset with each row id', async () => {
+      fetchMock
+        .mockImplementationOnce(async () =>
+          jsonResponse({
+            data: Array.from({ length: 100 }, (_, i) => datasetRow(i)),
+          }),
+        )
+        .mockImplementationOnce(async () =>
+          jsonResponse({ data: [datasetRow(100)] }),
+        );
+
+      const { results } = await Eval('dataset eval', {
+        data: statsigDataset('golden', (row) => ({
+          input: row.columns.question,
+          expected: row.columns.answer,
+          category: row.groups,
+        })),
+        task: (input: string) => input.replace('q', 'a'),
+        scorer: ({ output, expected }) => output === expected,
+      });
+
+      expect(results).toHaveLength(101);
+      const [firstPage, secondPage, post] = fetchMock.mock.calls;
+      expect(firstPage[0]).toBe(
+        'https://api.statsig.com/console/v1/eval_datasets/golden/rows?page=1&limit=100',
+      );
+      expect(firstPage[1].headers).toEqual({
+        'STATSIG-API-KEY': 'test-console-api-key',
+      });
+      expect(secondPage[0]).toContain('page=2&limit=100');
+      const body = JSON.parse(post[1].body as string);
+      expect(body.dataset).toBe('golden');
+      expect(body.results[100]).toMatchObject({
+        input: 'q100',
+        expected: 'a100',
+        category: ['math'],
+        rowID: 'row-100',
+        scores: { Grader: { score: 1 } },
+      });
+    });
+
+    test('fails when the dataset cannot be loaded', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({}, 404));
+      const task = jest.fn();
+
+      await expect(
+        Eval('dataset eval', {
+          data: statsigDataset('missing', (row) => ({
+            input: row.columns.question,
+          })),
+          task,
+          scorer: () => 1,
+        }),
+      ).rejects.toThrow("Failed to load eval dataset 'missing': 404");
+      expect(task).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      [
+        [{ input: 'q0', rowID: 'row-0' }, { input: 'q1' }],
+        'data[1] needs a rowID',
+      ],
+      [
+        [
+          { input: 'q0', rowID: 'row-0' },
+          { input: 'q1', rowID: 'row-0' },
+        ],
+        'data[1] repeats rowID row-0',
+      ],
+    ])(
+      'checks row ids before running any task when dataset is set',
+      async (data, message) => {
+        const task = jest.fn();
+
+        await expect(
+          Eval('dataset eval', {
+            data,
+            dataset: 'golden',
+            task,
+            scorer: () => 1,
+          }),
+        ).rejects.toThrow(message);
+        expect(task).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
   });
 });

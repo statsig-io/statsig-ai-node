@@ -20,6 +20,7 @@ import {
 } from './EvalParameters';
 import { EvalHooks } from './EvalHooks';
 import { EvalData, EvalDataRecord } from './EvalData';
+import { StatsigDataset } from './StatsigDataset';
 import {
   EvalScorers,
   Score,
@@ -42,8 +43,8 @@ export interface EvalOptions<
   Expected,
   Parameters extends EvalParameters,
 > {
-  /** Dataset of input/expected pairs or data set */
-  data: EvalData<Input, Expected>;
+  /** Dataset of input/expected pairs or data set, or a Statsig dataset from `statsigDataset()` */
+  data: EvalData<Input, Expected> | StatsigDataset<Input, Expected>;
 
   /** Function that generates an output given the input */
   task: EvalTask<Input, Output, Parameters>;
@@ -58,6 +59,13 @@ export interface EvalOptions<
 
   /** Optional name to identify the run of the eval */
   evalRunName?: string;
+
+  /**
+   * Name or id of the Statsig eval dataset the data came from. The console
+   * compares runs on the same dataset row by row, so every record needs the
+   * `rowID` of its dataset row. Set for you when `data` is `statsigDataset()`.
+   */
+  dataset?: string;
 
   /** A function that receives the results and produces optional summary scores. */
   summaryScoresFn?: (
@@ -259,6 +267,8 @@ export async function Eval<
 ): Promise<EvalResult<Input, Output, Expected>> {
   const { data, task, scorer, parameters, evalRunName, summaryScoresFn } =
     options;
+  const dataset =
+    options.dataset ?? (data instanceof StatsigDataset ? data.name : undefined);
   const apiKey = process.env.STATSIG_API_KEY;
 
   if (!apiKey) {
@@ -267,7 +277,13 @@ export async function Eval<
     );
   }
 
-  const normalizedData = await normalizeEvalData(data);
+  const normalizedData =
+    data instanceof StatsigDataset
+      ? await data.load(apiKey)
+      : await normalizeEvalData(data);
+  if (dataset !== undefined) {
+    assertDatasetRowIDs(normalizedData);
+  }
   const parsedParameters = parameters
     ? parseParameters(parameters)
     : ({} as InferParameters<Parameters>);
@@ -369,6 +385,7 @@ export async function Eval<
     evalRunName,
     computedSummaryScores,
     parameters,
+    dataset,
   );
 
   return {
@@ -408,9 +425,31 @@ async function normalizeEvalData<Input, Expected>(
   throw new Error('[Statsig] Invalid type provided to data parameter.');
 }
 
+// Checked before any task runs: the API rejects a run on a dataset whose
+// results don't each name a different row of it.
+function assertDatasetRowIDs<Input, Expected>(
+  records: EvalDataRecord<Input, Expected>[],
+): void {
+  const seen = new Set<string>();
+  records.forEach(({ rowID }, index) => {
+    if (!rowID) {
+      throw new Error(
+        `[Statsig] data[${index}] needs a rowID when the eval names a dataset.`,
+      );
+    }
+    if (seen.has(rowID)) {
+      throw new Error(
+        `[Statsig] data[${index}] repeats rowID ${rowID}; each record needs its own dataset row.`,
+      );
+    }
+    seen.add(rowID);
+  });
+}
+
 interface EvalResultsPayload {
   results: EvalResultRecordWithMetadata<string, string, string>[];
   name?: string;
+  dataset?: string;
   summaryScores?: Record<string, number>;
   parameters?: Record<string, string>;
 }
@@ -529,6 +568,7 @@ async function sendEvalResults<
   evalRunName?: string,
   computedSummaryScores?: Record<string, number>,
   parameters?: Parameters,
+  dataset?: string,
 ): Promise<void> {
   try {
     // Validate summary if provided
@@ -545,6 +585,7 @@ async function sendEvalResults<
     const requestBody: EvalResultsPayload = {
       results: records.map(serializeRecord),
       ...(evalRunName !== undefined && { name: evalRunName }),
+      ...(dataset !== undefined && { dataset }),
       ...(computedSummaryScores !== undefined && {
         summaryScores: computedSummaryScores,
       }),

@@ -108,6 +108,26 @@ If your server already uses OpenTelemetry HTTP instrumentation, its spans join t
 
 What Statsig sends today: workflow eval requests carry `Content-Type: application/json` and the headers you configured for the workflow. They don't carry `traceparent` yet. Until they do, `withIncomingTraceContext` leaves your handler unchanged. Statsig also doesn't send a header that marks a request as an eval or shadow run. To tell eval requests apart, for example to skip side effects or to tag their spans with `withStatsigEnvironment('eval', ...)`, add your own header to the workflow's headers and check for it in your handler.
 
+## Running evals on a Statsig dataset
+
+Pass `statsigDataset(name, toRecord)` as `Eval()`'s `data` to run on an eval dataset from the console. `toRecord` says which columns hold the input and the expected value. The run names the dataset and each result keeps its dataset row id, so the Eval page compares runs on the dataset row by row.
+
+```ts
+import { Eval, statsigDataset } from '@statsig/statsig-ai';
+
+await Eval('support_bot_quality', {
+  data: statsigDataset('support_cases', (row) => ({
+    input: row.columns.question,
+    expected: row.columns.answer,
+    category: row.groups,
+  })),
+  task: (input) => answer(input),
+  scorer: ({ output, expected }) => output === expected,
+});
+```
+
+To post your own records for a dataset instead, set `dataset` and give each record the `rowID` of its dataset row.
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

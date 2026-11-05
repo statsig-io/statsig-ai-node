@@ -31,6 +31,11 @@ export {
   EvalScorers,
 } from './evals/EvalScorer';
 export { EvalDataRecord, EvalData } from './evals/EvalData';
+export {
+  statsigDataset,
+  StatsigDataset,
+  StatsigDatasetRow,
+} from './evals/StatsigDataset';
 export { EvalHooks } from './evals/EvalHooks';
 export { StatsigAI } from './StatsigAI';
 export { wrap } from './wrappers/wrap-call';
