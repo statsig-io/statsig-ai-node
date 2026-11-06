@@ -106,7 +106,27 @@ export async function POST(request: Request) {
 
 If your server already uses OpenTelemetry HTTP instrumentation, its spans join the trace on their own. The helper keeps the active span when it's already in the incoming trace, so using both is safe.
 
-What Statsig sends today: workflow eval requests carry `Content-Type: application/json` and the headers you configured for the workflow. They don't carry `traceparent` yet. Until they do, `withIncomingTraceContext` leaves your handler unchanged. Statsig also doesn't send a header that marks a request as an eval or shadow run. To tell eval requests apart, for example to skip side effects or to tag their spans with `withStatsigEnvironment('eval', ...)`, add your own header to the workflow's headers and check for it in your handler.
+What Statsig sends: workflow eval requests carry `Content-Type: application/json`, the headers you configured for the workflow, and two headers of their own. `traceparent` names the eval row's root span, and `x-statsig-eval-run` holds the eval run ID. A header you configure with the same name wins, matched case-insensitively. Test Connection doesn't send either header.
+
+Spans from your endpoint get your app's environment, so eval requests land with your production traces, where online evals can grade them. To keep them out, check for `x-statsig-eval-run` and run the handler inside `withStatsigEnvironment('eval', ...)`. You can use the same check to skip side effects.
+
+```ts
+import {
+  withIncomingTraceContext,
+  withStatsigEnvironment,
+} from '@statsig/statsig-ai';
+
+app.post('/agent', (req, res) =>
+  withIncomingTraceContext(req.headers, () => {
+    const handle = async () => {
+      res.json({ output: await runAgent(req.body) });
+    };
+    return req.headers['x-statsig-eval-run']
+      ? withStatsigEnvironment('eval', handle)
+      : handle();
+  }),
+);
+```
 
 ## Running evals on a Statsig dataset
 
