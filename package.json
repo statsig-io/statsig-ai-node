@@ -66,6 +66,11 @@
     "@statsig/statsig-node-core": ">=0.0.0-0",
     "@statsig/statsig-node-core-rc": ">=0.0.0-0"
   },
+  "peerDependenciesMeta": {
+    "@statsig/statsig-node-core-rc": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@anthropic-ai/sdk": "0.120.0",
     "@statsig/statsig-node-core": ">=0.0.0-0",

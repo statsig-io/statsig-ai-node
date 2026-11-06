@@ -1,5 +1,3 @@
-import { ParameterStore } from '@statsig/statsig-node-core';
-
 import { PromptVersion } from './PromptVersion';
 import { context } from '@opentelemetry/api';
 import { STATSIG_CTX_KEY_ACTIVE_PROMPT } from '../otel/conventions';
@@ -10,7 +8,7 @@ import Statsig, { StatsigSelector } from '../wrappers/statsig';
 export function makePrompt<T extends StatsigSelector>(
   statsig: T['statsig'],
   name: string,
-  paramStore: ParameterStore,
+  paramStore: T['paramStore'],
   user: T['user'],
 ): Prompt {
   const liveConfigId = paramStore.getValue('live', '');

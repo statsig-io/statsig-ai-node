@@ -1,5 +1,5 @@
 import { DynamicConfig } from '@statsig/statsig-node-core';
-import { DynamicConfig as DynamicConfigRC } from '@statsig/statsig-node-core-rc';
+import { DynamicConfigRC } from '../wrappers/statsig';
 import Mustache from 'mustache';
 import { recordPromptTemplateVariables } from '../otel/prompt-context';
 

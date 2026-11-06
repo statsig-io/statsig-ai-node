@@ -83,6 +83,28 @@ describe('Statsig Wrapper', () => {
     });
   });
 
+  describe('Attach Statsig RC instance', () => {
+    it('Expect no error on valid StatsigUser', async () => {
+      const statsig = new StatsigRC('secret-test-key');
+      const statsigAI = StatsigAI.newShared({ statsig: statsig });
+      await statsigAI.initialize();
+      const user = new StatsigUserRC({ userID: 'test-user' });
+      expect(statsigAI.getPrompt(user, 'test_prompt').getName()).toBe(
+        'test_prompt',
+      );
+    });
+
+    it('Expect runtime error on conflicting StatsigUser', async () => {
+      const statsig = new StatsigRC('secret-test-key');
+      StatsigAI.newShared({ statsig: statsig });
+      await StatsigAI.shared().initialize();
+      const user = new StatsigUserStd({ userID: 'test-user' });
+      expect(() => StatsigAI.shared().getPrompt(user, 'test_prompt')).toThrow(
+        'Unexpected use of conflicting Statsig library versions',
+      );
+    });
+  });
+
   afterEach(async () => {
     await StatsigAI.shared().shutdown();
     StatsigAI.removeSharedInstance();
