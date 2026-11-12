@@ -36,6 +36,6 @@ export {
   StatsigDataset,
   StatsigDatasetRow,
 } from './evals/StatsigDataset';
-export { EvalHooks } from './evals/EvalHooks';
+export { EvalHooks, EvalTokenUsage } from './evals/EvalHooks';
 export { StatsigAI } from './StatsigAI';
 export { wrap } from './wrappers/wrap-call';

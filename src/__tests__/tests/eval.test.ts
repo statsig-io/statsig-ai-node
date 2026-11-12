@@ -1267,6 +1267,124 @@ describe('Eval', () => {
     expect(body.results[1].error).toBe(true);
   });
 
+  describe('latency and tokens', () => {
+    const getSentResults = () => {
+      const [, req] = fetchMock.mock.calls[0];
+      return JSON.parse(req?.body as string).results;
+    };
+
+    test('sends how long the task took to return its output as latencyMs', async () => {
+      let now = 1000;
+      const nowSpy = jest
+        .spyOn(performance, 'now')
+        .mockImplementation(() => now);
+      try {
+        const { results } = await Eval('test task', {
+          data: [{ input: 'Foo' }],
+          task: async (input: string) => {
+            now += 250.4;
+            return 'Hello ' + input;
+          },
+          scorer: () => {
+            // Scoring isn't part of the task's latency.
+            now += 1000;
+            return 1;
+          },
+        });
+
+        expect(results[0].latencyMs).toBe(250);
+      } finally {
+        nowSpy.mockRestore();
+      }
+
+      const [sent] = getSentResults();
+      expect(sent.latencyMs).toBe(250);
+    });
+
+    test('sends the sum of the tokens a task reports', async () => {
+      const { results } = await Eval('test task', {
+        data: [{ input: 'Foo' }],
+        task: async (input: string, { reportTokens }) => {
+          reportTokens({ inputTokens: 120, outputTokens: 30 });
+          reportTokens({ inputTokens: 80, outputTokens: 12 });
+          return 'Hello ' + input;
+        },
+        scorer: () => 1,
+      });
+
+      expect(results[0]).toMatchObject({ inputTokens: 200, outputTokens: 42 });
+      const [sent] = getSentResults();
+      expect(sent).toMatchObject({
+        latencyMs: expect.any(Number),
+        inputTokens: 200,
+        outputTokens: 42,
+      });
+    });
+
+    test('sends no tokens for a record whose task never reports them', async () => {
+      await Eval('test task', {
+        data: [{ input: 'Foo' }, { input: 'Bar' }],
+        task: (input: string, { reportTokens }) => {
+          if (input === 'Foo') {
+            reportTokens({ inputTokens: 10, outputTokens: 2 });
+          }
+          return 'Hello ' + input;
+        },
+        scorer: () => 1,
+      });
+
+      const [foo, bar] = getSentResults();
+      expect(foo).toMatchObject({ inputTokens: 10, outputTokens: 2 });
+      expect(bar.latencyMs).toEqual(expect.any(Number));
+      expect(bar).not.toHaveProperty('inputTokens');
+      expect(bar).not.toHaveProperty('outputTokens');
+    });
+
+    test('sends no latency or tokens for a record whose task throws', async () => {
+      const { results } = await Eval('test task', {
+        data: [{ input: 'Boom' }],
+        task: (_input: string, { reportTokens }): string => {
+          reportTokens({ inputTokens: 10, outputTokens: 2 });
+          throw new Error('Task failed');
+        },
+        scorer: () => 1,
+      });
+
+      expect(results[0].error).toBe(true);
+      const [sent] = getSentResults();
+      expect(sent.error).toBe(true);
+      for (const record of [results[0], sent]) {
+        expect(record).not.toHaveProperty('latencyMs');
+        expect(record).not.toHaveProperty('inputTokens');
+        expect(record).not.toHaveProperty('outputTokens');
+      }
+    });
+
+    test('ignores reported token counts the API would reject', async () => {
+      const { results } = await Eval('test task', {
+        data: [{ input: 'Foo' }],
+        task: (input: string, { reportTokens }) => {
+          reportTokens({ inputTokens: NaN, outputTokens: 5 });
+          reportTokens({ inputTokens: 5, outputTokens: -1 });
+          reportTokens({ inputTokens: 7, outputTokens: 3 });
+          return 'Hello ' + input;
+        },
+        scorer: () => 1,
+      });
+
+      expect(results[0]).toMatchObject({
+        error: false,
+        inputTokens: 7,
+        outputTokens: 3,
+      });
+      expect(console.warn).toHaveBeenCalledTimes(2);
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('reportTokens()'),
+        { inputTokens: 5, outputTokens: -1 },
+      );
+    });
+  });
+
   test('handles async generator data', async () => {
     async function* dataGenerator() {
       yield { input: 'world', expected: 'Hello world' };

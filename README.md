@@ -148,6 +148,34 @@ await Eval('support_bot_quality', {
 
 To post your own records for a dataset instead, set `dataset` and give each record the `rowID` of its dataset row.
 
+## Latency and tokens
+
+`Eval()` times each record's `task`, from the call until its output is ready, and sends that with the result as `latencyMs`. Scorers aren't part of it.
+
+The runner can't see your model calls, so the task reports its tokens with `reportTokens` from its second argument. Each call adds to the record's totals, so a task that makes several model calls can report each one, or its total once. The totals are sent as `inputTokens` and `outputTokens`.
+
+```ts
+await Eval('support_bot_quality', {
+  data,
+  task: async (input, { reportTokens }) => {
+    const { choices, usage } = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: input }],
+    });
+    if (usage) {
+      reportTokens({
+        inputTokens: usage.prompt_tokens,
+        outputTokens: usage.completion_tokens,
+      });
+    }
+    return choices[0].message.content ?? '';
+  },
+  scorer: ({ output, expected }) => output === expected,
+});
+```
+
+The run page shows a Latency column, and a Tokens column when the task reported tokens. Neither is graded. `Eval()` also returns them on each result. A record whose task throws sends neither, and a record whose task never calls `reportTokens` sends no tokens. `reportTokens` ignores a call whose counts aren't finite numbers of at least 0, and logs a warning.
+
 ## Community
 
 If you need any assistance or just have a question, feel free to reach out to us on [Slack](https://statsig.com/community?ref=gh_jsm).

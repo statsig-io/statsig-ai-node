@@ -18,7 +18,7 @@ import {
   InferParameters,
   parseParameters,
 } from './EvalParameters';
-import { EvalHooks } from './EvalHooks';
+import { EvalHooks, EvalTokenUsage } from './EvalHooks';
 import { EvalData, EvalDataRecord } from './EvalData';
 import { StatsigDataset } from './StatsigDataset';
 import {
@@ -84,7 +84,20 @@ interface RecordTraceIDs {
   spanID?: string;
 }
 
-interface EvalResultRecordBase<Input, Output> extends RecordTraceIDs {
+interface RecordMeasurements {
+  /** Milliseconds the task took to produce its output. Unset when it threw. */
+  latencyMs?: number;
+  /**
+   * Totals the task reported with `reportTokens`. Unset when it reported
+   * none or threw.
+   */
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+interface EvalResultRecordBase<Input, Output>
+  extends RecordTraceIDs,
+    RecordMeasurements {
   input: Input;
   output: Output;
   category?: string[] | string;
@@ -248,6 +261,39 @@ function startScorerSpan<R>(scorerName: string, fn: () => R): R {
   )();
 }
 
+/**
+ * Sums the token counts a task reports. Invalid counts are ignored, since one
+ * would make the API reject every result in the run.
+ */
+function createTokenCounter(): {
+  reportTokens: (usage: EvalTokenUsage) => void;
+  getTotals: () => EvalTokenUsage | undefined;
+} {
+  let totals: EvalTokenUsage | undefined;
+  return {
+    reportTokens: (usage) => {
+      const inputTokens = usage?.inputTokens;
+      const outputTokens = usage?.outputTokens;
+      if (!isTokenCount(inputTokens) || !isTokenCount(outputTokens)) {
+        console.warn(
+          '[Statsig] reportTokens() needs finite inputTokens and outputTokens of at least 0. Ignoring:',
+          usage,
+        );
+        return;
+      }
+      totals = {
+        inputTokens: (totals?.inputTokens ?? 0) + inputTokens,
+        outputTokens: (totals?.outputTokens ?? 0) + outputTokens,
+      };
+    },
+    getTotals: () => totals,
+  };
+}
+
+function isTokenCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
 function getActiveSpanIDs(): RecordTraceIDs {
   const spanContext = trace.getActiveSpan()?.spanContext();
   if (!spanContext || !isSpanContextValid(spanContext)) {
@@ -303,12 +349,20 @@ export async function Eval<
       let scores: Record<string, ScoreWithMetadataInternal> = {};
       let error = false;
       let traceIDs: RecordTraceIDs = {};
+      let measurements: RecordMeasurements = {};
 
       const runTaskAndScorers = async () => {
+        const tokenCounter = createTokenCounter();
+        const taskStart = performance.now();
         output = await task(record.input, {
           parameters: parsedParameters,
           category: record.category ?? '',
+          reportTokens: tokenCounter.reportTokens,
         });
+        measurements = {
+          latencyMs: Math.round(performance.now() - taskStart),
+          ...tokenCounter.getTotals(),
+        };
 
         const scorerArgs: ScorerFunctionArgs<Input, Output, Expected> = {
           ...record,
@@ -352,6 +406,7 @@ export async function Eval<
           output = '[Error]' as unknown as Output;
         }
         error = true;
+        measurements = {};
         for (const scorerName of Object.keys(normalizedScorers)) {
           scores[scorerName] = { score: 0, metadata: undefined };
         }
@@ -360,6 +415,7 @@ export async function Eval<
       return {
         ...record,
         ...traceIDs,
+        ...measurements,
         output,
         scores,
         error,
